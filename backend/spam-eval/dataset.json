@@ -1,0 +1,354 @@
+[
+  {
+    "id": "spam_01",
+    "expected": "spam",
+    "category": "lottery_scam",
+    "fromEmail": "claims@uk-national-jackpot-winner.com",
+    "subject": "CONGRATULATIONS! You have won the $5,000,000 Euro Jackpot",
+    "text": "Dear Winner, Congratulations you have won the official cash prize jackpot of $5,000,000 in our international lottery draw! Claim your prize immediately by replying with your bank details and full name. This prize is 100% free and risk-free."
+  },
+  {
+    "id": "spam_02",
+    "expected": "spam",
+    "category": "phishing_urgency",
+    "fromEmail": "security-alert@chase-secure-verify.net",
+    "subject": "URGENT: Your Chase account has been suspended",
+    "text": "Your account has been suspended due to unauthorized login detected. Verify your identity and password immediately within 24 hours at http://192.168.1.55/chase-login or your access will be terminated."
+  },
+  {
+    "id": "spam_03",
+    "expected": "spam",
+    "category": "crypto_scam",
+    "fromEmail": "giveaways@musk-foundation-eth.org",
+    "subject": "Official Crypto Giveaway: Double your BTC and ETH now",
+    "text": "To celebrate the bull market, Elon Musk is running a crypto giveaway! Send 0.1 BTC to get 0.2 BTC back immediately. Guaranteed returns! Send 1 ETH get 2 ETH. Visit the claim portal now."
+  },
+  {
+    "id": "spam_04",
+    "expected": "spam",
+    "category": "advance_fee_fraud",
+    "fromEmail": "barrister.williams119@gmail.com",
+    "subject": "CONFIDENTIAL: Unclaimed inheritance funds of $14.5M USD",
+    "text": "I am Barrister David Williams, legal counsel to a deceased client who left unclaimed inheritance funds of $14,500,000 with a diplomatic courier. As the sole next of kin beneficiary, wire transfer of $750 processing fee via Western Union is needed to release the consignment box."
+  },
+  {
+    "id": "spam_05",
+    "expected": "spam",
+    "category": "spam_commercial",
+    "fromEmail": "pharmacy-deals@rx-med-savings-direct.com",
+    "subject": "Discount generic Viagra and Cialis up to 80% off",
+    "text": "Buy Viagra and Cialis online without doctor prescription. Miracle weight loss pills and male enhancement shipped discreetly to your door. Free shipping on all orders over $50."
+  },
+  {
+    "id": "spam_06",
+    "expected": "spam",
+    "category": "adult_dating",
+    "fromEmail": "matches@hot-singles-nearby-tonight.biz",
+    "subject": "Hot singles in your neighborhood want to meet",
+    "text": "Local women are browsing profiles right now. Adult dating with no strings attached. Click here immediately to see photos of hot singles 2 miles away from your location."
+  },
+  {
+    "id": "spam_07",
+    "expected": "spam",
+    "category": "phishing_brand_impersonation",
+    "fromEmail": "support@micros0ft-billing-alert.com",
+    "subject": "Microsoft 365: Update billing information required",
+    "text": "Your Microsoft 365 subscription expired. Update billing info and verify your credentials within 24 hours or your Outlook mailbox and OneDrive files will be deleted permanently. Click here to confirm your password."
+  },
+  {
+    "id": "spam_08",
+    "expected": "spam",
+    "category": "financial_bait",
+    "fromEmail": "offers@preapproved-loan-direct.info",
+    "subject": "Pre-approved credit card with $25,000 limit - No credit check",
+    "text": "Congratulations! You are pre-approved for a platinum credit card with $25,000 credit limit. No cost loan, 100% free approval, zero interest for 24 months. Claim your reward today."
+  },
+  {
+    "id": "spam_09",
+    "expected": "spam",
+    "category": "work_from_home_scam",
+    "fromEmail": "recruiting@easy-income-online24.com",
+    "subject": "Earn $850 a day working from home - Immediate opening",
+    "text": "Simple data entry position. Earn $850 a day working from home for just 2 hours. Guaranteed profit with no previous experience needed. Act now or access will be closed."
+  },
+  {
+    "id": "spam_10",
+    "expected": "spam",
+    "category": "package_phishing",
+    "fromEmail": "tracking@dhl-express-redelivery-notice.xyz",
+    "subject": "DHL: Delivery attempt failed for your package #DHL-99201",
+    "text": "Your package could not be delivered due to incorrect street address. Pay $2.99 redelivery fee within 48 hours at http://dhl-parcel-tracking-status.xyz/pay or package will be returned to sender."
+  },
+  {
+    "id": "spam_11",
+    "expected": "spam",
+    "category": "tax_scam",
+    "fromEmail": "refunds@irs-tax-gov-portal.cc",
+    "subject": "Internal Revenue Service: Unclaimed tax refund of $1,420.00",
+    "text": "After the latest fiscal calculation, you have unclaimed funds of $1,420.00 from your tax return. Submit your direct deposit bank details, SSN, and date of birth to receive direct wire transfer."
+  },
+  {
+    "id": "spam_12",
+    "expected": "spam",
+    "category": "fake_invoice_scam",
+    "fromEmail": "billing@geek-squad-protection-renew.com",
+    "subject": "Invoice #GS-99482 for Total Defense Renewal: $499.99",
+    "text": "Thank you for renewing Geek Squad Protection. $499.99 has been auto-debited from your bank account. If you did not authorize this charge, call our cancellation desk immediately at +1-888-555-0199."
+  },
+  {
+    "id": "spam_13",
+    "expected": "spam",
+    "category": "crypto_wallet_phishing",
+    "fromEmail": "security@metamask-io-wallet-sync.com",
+    "subject": "MetaMask: Critical security patch required for your wallet",
+    "text": "Due to a network upgrade, all Ethereum wallets must sync with the smart contract protocol. Failure to verify your 12-word seed phrase within 24 hours will result in permanent loss of crypto assets."
+  },
+  {
+    "id": "spam_14",
+    "expected": "spam",
+    "category": "netflix_phishing",
+    "fromEmail": "account@netflix-membership-reactivate.com",
+    "subject": "Your Netflix membership is on hold",
+    "text": "We were unable to process your monthly payment. Your account has been suspended. Update billing info and verify your credit card details immediately by visiting http://172.56.21.99/netflix-update."
+  },
+  {
+    "id": "spam_15",
+    "expected": "spam",
+    "category": "fake_apple_receipt",
+    "fromEmail": "receipts@app-store-billing-service.online",
+    "subject": "Your receipt from Apple for Final Cut Pro ($299.99)",
+    "text": "Order ID: AP-8837192. Item: Final Cut Pro. Price: $299.99. If you did not make this purchase, click here immediately to cancel this transaction and refund your money before it posts to your credit card."
+  },
+  {
+    "id": "spam_16",
+    "expected": "spam",
+    "category": "casino_spam",
+    "fromEmail": "vip@spin-palace-jackpot777.com",
+    "subject": "Claim 500 FREE SPINS + $2,000 Casino Welcome Bonus!",
+    "text": "Huge jackpot waiting for you! 500 free spins and double your first deposit. Play slots, poker, and roulette with guaranteed returns. Claim your prize now!"
+  },
+  {
+    "id": "spam_17",
+    "expected": "spam",
+    "category": "click_here_offer",
+    "fromEmail": "rewards@amazon-gift-card-drop.top",
+    "subject": "Claim your $500 Amazon Gift Card reward now",
+    "text": "You were chosen as user of the day! Click here immediately to claim your $500 Amazon gift card. No cost loan, 100% free survey completion required. Offer expires in 2 hours."
+  },
+  {
+    "id": "spam_18",
+    "expected": "spam",
+    "category": "hr_payroll_phishing",
+    "fromEmail": "payroll-notification@company-adp-hr-portal.com",
+    "subject": "URGENT: Payroll direct deposit information update",
+    "text": "All employees must verify their direct deposit bank details due to banking system migration. Verify your credentials and enter your bank routing number before Friday or your upcoming paycheck will be withheld."
+  },
+  {
+    "id": "spam_19",
+    "expected": "spam",
+    "category": "malicious_attachment_lure",
+    "fromEmail": "invoicing@global-supplies-corp.ru",
+    "subject": "Overdue payment statement and remittance advice",
+    "text": "Please find attached the past due invoice statement for your company. Review invoice_details_final.pdf.exe immediately to avoid legal collection action."
+  },
+  {
+    "id": "spam_20",
+    "expected": "spam",
+    "category": "debt_relief_scam",
+    "fromEmail": "relief@american-debt-elimination-group.com",
+    "subject": "Eliminate up to 80% of your credit card debt legally",
+    "text": "Under government debt relief programs, you qualify to wipe away credit card balances, personal loans, and medical bills. 100% free consultation. Act now before enrollment closes."
+  },
+  {
+    "id": "spam_21",
+    "expected": "spam",
+    "category": "facebook_security_phishing",
+    "fromEmail": "security@facebook-meta-appeals-support.com",
+    "subject": "Your Facebook Page is scheduled for permanent deletion",
+    "text": "Your page violated copyright terms and community standards. Act now or account will be deleted within 24 hours. Submit your appeal and verify your password on our official form."
+  },
+  {
+    "id": "spam_22",
+    "expected": "spam",
+    "category": "unsolicited_seo_blast",
+    "fromEmail": "rankings@top1-google-seo-agency.com",
+    "subject": "Rank #1 on Google guaranteed - 1000 backlinks for $99",
+    "text": "Hello, I visited your website and noticed several SEO errors preventing you from ranking on Google. We offer 1000 high DA backlinks, guaranteed traffic, and top rank within 30 days. Reply to get started."
+  },
+  {
+    "id": "ham_01",
+    "expected": "ham",
+    "category": "otp_transactional",
+    "fromEmail": "no-reply@chase.com",
+    "subject": "Your Chase online verification code",
+    "text": "Your one-time verification code is 849201. This code expires in 10 minutes. For your security, never share this code or your password with anyone, including Chase representatives."
+  },
+  {
+    "id": "ham_02",
+    "expected": "ham",
+    "category": "otp_transactional",
+    "fromEmail": "account-security-noreply@accountprotection.microsoft.com",
+    "subject": "Microsoft account security code",
+    "text": "Please use verification code 492019 for Microsoft authentication. If you did not request this code, someone may have entered your phone number or email by mistake."
+  },
+  {
+    "id": "ham_03",
+    "expected": "ham",
+    "category": "password_reset",
+    "fromEmail": "noreply@github.com",
+    "subject": "[GitHub] Please reset your password",
+    "text": "We heard that you lost your GitHub password. Sorry about that! You can use the following link to reset your password within the next 24 hours: https://github.com/password_reset/849281. If you didn't mean to reset your password, you can safely ignore this email."
+  },
+  {
+    "id": "ham_04",
+    "expected": "ham",
+    "category": "e_commerce_receipt",
+    "fromEmail": "shipment-tracking@amazon.com",
+    "subject": "Your Amazon.com order #112-8492019-3829102 has shipped!",
+    "text": "Hi Alex, Good news! Your order of 'Anker USB-C Fast Charger Cable (6ft, 2-Pack)' has shipped and is scheduled to arrive tomorrow by 8 PM. Track your package: https://www.amazon.com/progress-tracker/package/112-8492019."
+  },
+  {
+    "id": "ham_05",
+    "expected": "ham",
+    "category": "ride_receipt",
+    "fromEmail": "uber.us@uber.com",
+    "subject": "Your Tuesday evening trip with Uber",
+    "text": "Total: $24.80. Thanks for riding with Uber, Alex. Driver: Michael (Toyota Camry). Trip distance: 5.2 miles. You can view your detailed breakdown and trip route at https://riders.uber.com/trips."
+  },
+  {
+    "id": "ham_06",
+    "expected": "ham",
+    "category": "personal_message",
+    "fromEmail": "sarah.miller88@gmail.com",
+    "subject": "Dinner this Friday?",
+    "text": "Hey Alex! Hope your week is going well. Are we still on for Italian dinner this Friday around 7:30 PM? Let me know if that time works or if you prefer somewhere else."
+  },
+  {
+    "id": "ham_07",
+    "expected": "ham",
+    "category": "work_collaboration",
+    "fromEmail": "priya.sharma@acme-corp.com",
+    "subject": "Updated slides for tomorrow's client presentation",
+    "text": "Hi team, I finished integrating the Q3 revenue metrics into the slide deck. Please review slides 12 through 16 before our morning sync at 9:30 AM. Link: https://docs.google.com/presentation/d/1aBcDeFgHiJkLm"
+  },
+  {
+    "id": "ham_08",
+    "expected": "ham",
+    "category": "flight_confirmation",
+    "fromEmail": "ticketreceipt@delta.com",
+    "subject": "Delta flight confirmation - Flight DL 1284 to Seattle",
+    "text": "Confirmation Code: H9K2PL. Passenger: Alex Vance. Flight DL 1284 departs New York (JFK) on Friday, Oct 14 at 8:15 AM and arrives in Seattle (SEA) at 11:30 AM. View your boarding pass and baggage allowance on the Fly Delta app."
+  },
+  {
+    "id": "ham_09",
+    "expected": "ham",
+    "category": "promotional_known_brand",
+    "fromEmail": "news@nike.com",
+    "subject": "Nike Pegasus 41 is here: Engineered for daily runners",
+    "text": "Meet the all-new Pegasus 41 featuring responsive ReactX foam cushioning. Designed for everyday runners seeking lightweight comfort and durability. Shop the collection at nike.com or unsubscribe anytime at https://www.nike.com/preferences."
+  },
+  {
+    "id": "ham_10",
+    "expected": "ham",
+    "category": "tech_newsletter",
+    "fromEmail": "dan@tldr.tech",
+    "subject": "TLDR Tech: Anthropic announces Claude 3.5 Sonnet, React 19 released",
+    "text": "TLDR is a curated daily summary of the most interesting tech stories. Today: Anthropic releases Claude 3.5 Sonnet with state-of-the-art coding benchmarks. React 19 is officially stable. Read more at https://tldr.tech/stories/2026-09-28. To unsubscribe click here."
+  },
+  {
+    "id": "ham_11",
+    "expected": "ham",
+    "category": "team_invitation",
+    "fromEmail": "invitation-noreply@slack.com",
+    "subject": "Elena invited you to join the Phonemail Dev team on Slack",
+    "text": "Elena (elena@phonemail.com) invited you to collaborate in Slack. Join the workspace to chat, share files, and integrate project notifications: https://phonemail-team.slack.com/signup"
+  },
+  {
+    "id": "ham_12",
+    "expected": "ham",
+    "category": "utility_bill",
+    "fromEmail": "ebill@conedison.com",
+    "subject": "Your Con Edison electric bill is ready to view",
+    "text": "Account ending in 4910. Your monthly statement for electric service totaling $84.20 is now available online. Payment is due on October 18, 2026. View your energy usage and pay your bill at https://coned.com/myaccount."
+  },
+  {
+    "id": "ham_13",
+    "expected": "ham",
+    "category": "academic_collaboration",
+    "fromEmail": "dr.henderson@stanford.edu",
+    "subject": "Feedback on your machine learning project draft",
+    "text": "Dear Alex, I reviewed your paper draft regarding transformer latency optimization. Your evaluation on inference quantization is thorough. Please make sure to cite the Vaswani 2017 paper and add the ablation test table before Monday's seminar."
+  },
+  {
+    "id": "ham_14",
+    "expected": "ham",
+    "category": "medical_reminder",
+    "fromEmail": "reminders@apex-health-dental.org",
+    "subject": "Appointment Reminder: Dental Cleaning on Oct 8 at 10:00 AM",
+    "text": "This is a friendly reminder for your upcoming routine dental exam with Dr. Karen Zhao on Wednesday, Oct 8 at 10:00 AM. Please reply 'C' to confirm or call our office at (555) 234-8900 if you need to reschedule."
+  },
+  {
+    "id": "ham_15",
+    "expected": "ham",
+    "category": "workspace_comment",
+    "fromEmail": "notifications@notion.so",
+    "subject": "Marcus left a comment on 'Q4 Infrastructure Roadmap'",
+    "text": "Marcus commented: 'Agreed on migrating SMTP worker queues to Redis. Let's schedule the architecture review for next Tuesday.' Reply directly to this email or view the page at https://notion.so/workspace/doc-88192."
+  },
+  {
+    "id": "ham_16",
+    "expected": "ham",
+    "category": "subscription_receipt",
+    "fromEmail": "no-reply@spotify.com",
+    "subject": "Your Spotify Premium monthly receipt",
+    "text": "Thank you for subscribing to Spotify Premium Individual ($11.99/mo). Your next billing date will be October 27, 2026. View receipt and manage your subscription at https://www.spotify.com/account/subscription."
+  },
+  {
+    "id": "ham_17",
+    "expected": "ham",
+    "category": "hotel_booking",
+    "fromEmail": "automated@airbnb.com",
+    "subject": "Reservation confirmed: Loft in Downtown Chicago (Oct 18-21)",
+    "text": "Pack your bags! Your reservation at Sunny Downtown Loft is confirmed. Check-in is after 3:00 PM on Friday, Oct 18. Host contact: David (+1-312-555-0182). House rules and directions available at https://airbnb.com/trips."
+  },
+  {
+    "id": "ham_18",
+    "expected": "ham",
+    "category": "video_conference_invite",
+    "fromEmail": "no-reply@zoom.us",
+    "subject": "Alex Vance has invited you to a scheduled Zoom meeting",
+    "text": "Topic: Sprint Retrospective & Architecture Review. Time: Thursday, Oct 2, 2026 2:00 PM Eastern. Join Zoom Meeting: https://zoom.us/j/9482019382 Meeting ID: 948 201 9382 Passcode: 482019"
+  },
+  {
+    "id": "ham_19",
+    "expected": "ham",
+    "category": "social_network_message",
+    "fromEmail": "messages-noreply@linkedin.com",
+    "subject": "Daniel Carter sent you a message on LinkedIn",
+    "text": "Daniel Carter (Staff Engineer at Cloudflare): 'Hi Alex, loved your recent article on high-throughput SMTP processing in Node.js. Would you be open to a quick 15-minute chat sometime next week?'"
+  },
+  {
+    "id": "ham_20",
+    "expected": "ham",
+    "category": "customer_support",
+    "fromEmail": "support@stripe.com",
+    "subject": "[Ticket #884920] Your payout schedule inquiry",
+    "text": "Hi Alex, Thank you for reaching out to Stripe Support. We reviewed your account and confirmed that daily rolling payouts have been activated. The pending balance of $1,280.00 will transfer to your bank account tomorrow morning."
+  },
+  {
+    "id": "ham_21",
+    "expected": "ham",
+    "category": "cloud_invoice",
+    "fromEmail": "no-reply-aws@amazon.com",
+    "subject": "Amazon Web Services Invoice [Account: 8849-2019-3810]",
+    "text": "Your AWS billing invoice for the month of September 2026 is now available. Total amount: $42.18. Charges have been applied to your card ending in 4102. Download the tax invoice PDF at https://console.aws.amazon.com/billing."
+  },
+  {
+    "id": "ham_22",
+    "expected": "ham",
+    "category": "game_purchase_receipt",
+    "fromEmail": "noreply@steampowered.com",
+    "subject": "Thank you for your Steam purchase!",
+    "text": "Your transaction is complete. Item: Cyberpunk 2077: Phantom Liberty. Total: $29.99. Payment method: Visa ending in 8812. The game has been added to your Steam Library and is ready for download."
+  }
+]

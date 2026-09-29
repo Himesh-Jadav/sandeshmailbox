@@ -1,0 +1,12 @@
+**/.git
+**/.gitignore
+**/node_modules
+**/npm-debug.log*
+**/.mongo-data
+**/.local-mongo-uri
+backend/node_modules
+backend/.mongo-data
+frontend/node_modules
+frontend/dist
+.env
+.env.local

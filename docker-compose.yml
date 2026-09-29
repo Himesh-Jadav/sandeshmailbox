@@ -1,0 +1,81 @@
+name: phonemail
+
+services:
+  # ── MongoDB Service ─────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: phonemail-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - phonemail-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok", "--quiet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ── PhoneMail Backend (API & Local SMTP Server) ─────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: phonemail-backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - SMTP_PORT=2525
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/phonemail}
+      - JWT_SECRET=${JWT_SECRET:-phonemail-super-secret-jwt-key-2026}
+      - MAIL_DOMAIN=${MAIL_DOMAIN:-sandesh.in}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
+      - TWILIO_VERIFY_SERVICE_SID=${TWILIO_VERIFY_SERVICE_SID:-}
+      - TEXTBEE_API_KEY=${TEXTBEE_API_KEY:-}
+      - TEXTBEE_DEVICE_ID=${TEXTBEE_DEVICE_ID:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.1-8b-instant}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+      - "${SMTP_PORT:-2525}:2525"
+    networks:
+      - phonemail-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── PhoneMail Frontend (Vite React + Nginx Reverse Proxy) ───────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: phonemail-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    networks:
+      - phonemail-network
+
+# ── Persistent Storage Volumes ────────────────────────────────────────────────
+volumes:
+  mongo-data:
+    driver: local
+
+# ── Isolated Internal Bridge Network ──────────────────────────────────────────
+networks:
+  phonemail-network:
+    driver: bridge
