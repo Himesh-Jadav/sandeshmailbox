@@ -13,7 +13,7 @@ const otpVerificationSchema = new mongoose.Schema(
     },
     purpose: {
       type: String,
-      enum: ['signup', 'forgot_password', 'login', 'generic'],
+      enum: ['signup', 'forgot_password', 'login', 'update_password', 'generic'],
       default: 'signup',
     },
     channel: {

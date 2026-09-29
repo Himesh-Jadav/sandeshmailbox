@@ -86,9 +86,9 @@ export const SandeshAuthCard: React.FC<SandeshAuthCardProps> = ({
     e.preventDefault();
     setError(null);
 
-    const val = getNormalizedPhone();
-    if (!val) {
-      setError('Please enter your mobile phone number');
+    const raw = phone.trim();
+    if (!raw) {
+      setError('Please enter your phone number or PhoneMail address');
       return;
     }
     if (!password) {
@@ -96,16 +96,23 @@ export const SandeshAuthCard: React.FC<SandeshAuthCardProps> = ({
       return;
     }
 
+    let identifier = raw;
+    if (raw.includes('@')) {
+      identifier = raw.toLowerCase();
+    } else {
+      identifier = getNormalizedPhone();
+    }
+
     setLoading(true);
     try {
-      await login(val, password);
+      await login(identifier, password);
       if (onSuccess) {
         onSuccess();
       } else {
         navigate('/dashboard');
       }
     } catch (err: any) {
-      setError(err.message || 'Invalid phone or password');
+      setError(err.message || 'Invalid phone, PhoneMail, or password');
     } finally {
       setLoading(false);
     }
@@ -319,16 +326,22 @@ export const SandeshAuthCard: React.FC<SandeshAuthCardProps> = ({
         <form onSubmit={handleSignIn} className="space-y-3" autoComplete="off">
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Phone Number
+              Phone Number or PhoneMail
             </label>
             <div className="relative flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 px-3.5 py-2 sm:py-2.5 transition-all focus-within:border-blue-500 dark:focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/20 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-              <svg className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="5" y="2" width="14" height="20" rx="2.5" strokeWidth="1.75" />
-                <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="2.5" strokeLinecap="round" />
-              </svg>
+              {phone.includes('@') ? (
+                <svg className="w-4 h-4 text-blue-500 dark:text-blue-400 mr-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="5" y="2" width="14" height="20" rx="2.5" strokeWidth="1.75" />
+                  <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+              )}
               <input
-                type="tel"
-                placeholder="+919876543210"
+                type="text"
+                placeholder="+919876543210 or 9876543210@sandesh.in"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none"

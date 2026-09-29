@@ -90,3 +90,64 @@ export const cleanEmailDisplay = (email?: string | null): string => {
   return trimmed;
 };
 
+/**
+ * Format DOB for human display with age calculation
+ */
+export const formatDobDisplay = (dobStr?: string | null): { formatted: string; age: number | null } | null => {
+  if (!dobStr) return null;
+  try {
+    const parts = dobStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) {
+        const formatted = d.toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        });
+        const today = new Date();
+        let age = today.getFullYear() - year;
+        const m = today.getMonth() - month;
+        if (m < 0 || (m === 0 && today.getDate() < day)) {
+          age--;
+        }
+        return { formatted, age: age >= 0 ? age : null };
+      }
+    }
+    const d = new Date(dobStr);
+    if (!isNaN(d.getTime())) {
+      return {
+        formatted: d.toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }),
+        age: null,
+      };
+    }
+  } catch (_) {}
+  return { formatted: dobStr, age: null };
+};
+
+/**
+ * Format gender key into clean presentation label
+ */
+export const formatGenderDisplay = (gender?: string | null): string | null => {
+  if (!gender) return null;
+  const g = gender.trim().toLowerCase();
+  switch (g) {
+    case 'male':
+      return 'Male';
+    case 'female':
+      return 'Female';
+    case 'other':
+      return 'Other';
+    case 'prefer_not_to_say':
+      return 'Prefer not to say';
+    default:
+      return gender.charAt(0).toUpperCase() + gender.slice(1);
+  }
+};

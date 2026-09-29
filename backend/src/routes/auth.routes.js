@@ -19,14 +19,14 @@ const checkSchema = z.object({
 
 const otpStartSchema = z.object({
   phone: phoneSchema,
-  purpose: z.enum(['signup', 'forgot_password', 'login', 'generic']).default('signup'),
+  purpose: z.enum(['signup', 'forgot_password', 'login', 'update_password', 'generic']).default('signup'),
   channel: z.enum(['sms', 'call']).default('sms'),
 });
 
 const otpVerifySchema = z.object({
   phone: phoneSchema,
   code: z.string().trim().min(4, 'Code must be at least 4 characters').max(10),
-  purpose: z.enum(['signup', 'forgot_password', 'login', 'generic']).default('signup'),
+  purpose: z.enum(['signup', 'forgot_password', 'login', 'update_password', 'generic']).default('signup'),
 });
 
 const setPasswordSchema = z.object({
@@ -40,10 +40,17 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
-const loginSchema = z.object({
-  phone: phoneSchema,
-  password: z.string().min(1, 'Password is required'),
-});
+const loginSchema = z
+  .object({
+    identifier: z.string().trim().min(1, 'Phone number or PhoneMail is required').optional(),
+    phone: z.string().trim().optional(),
+    email: z.string().trim().optional(),
+    password: z.string().min(1, 'Password is required'),
+  })
+  .refine((data) => Boolean(data.identifier || data.phone || data.email), {
+    message: 'Phone number or PhoneMail is required',
+    path: ['identifier'],
+  });
 
 /**
  * POST /api/auth/check
@@ -135,8 +142,9 @@ router.post('/forgot-password/reset', async (req, res, next) => {
  */
 router.post('/login', async (req, res, next) => {
   try {
-    const { phone, password } = loginSchema.parse(req.body);
-    const result = await login(phone, password);
+    const data = loginSchema.parse(req.body);
+    const identifier = (data.identifier || data.phone || data.email || '').trim();
+    const result = await login(identifier, data.password);
     res.json(result);
   } catch (err) {
     next(err);

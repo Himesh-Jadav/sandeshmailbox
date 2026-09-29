@@ -346,3 +346,12 @@ export function startSmtpServer(port = 2525) {
 export function getSmtpServer() {
   return smtpServerInstance;
 }
+
+export function stopSmtpServer() {
+  if (smtpServerInstance) {
+    try {
+      smtpServerInstance.close();
+      smtpServerInstance = null;
+    } catch (_) {}
+  }
+}

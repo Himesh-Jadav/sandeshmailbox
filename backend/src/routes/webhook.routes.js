@@ -5,7 +5,11 @@ import {
   robustSpeakOrGather,
   dispatchOtp,
 } from '../services/telnyx.service.js';
-import { createOrResetIvrAccount } from '../services/auth.service.js';
+import {
+  createOrResetIvrAccount,
+  resetPasswordViaIvr,
+  getAccountDetailsViaIvr,
+} from '../services/auth.service.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 const router = Router();
@@ -42,6 +46,9 @@ router.post('/messaging', async (req, res) => {
   res.status(200).json({ received: true });
 });
 
+router.get('/messaging', (_req, res) => res.json({ status: 'ok', service: 'telnyx-messaging-webhook' }));
+router.get('/voice', (_req, res) => res.json({ status: 'ok', service: 'telnyx-voice-webhook' }));
+
 /**
  * POST /api/webhooks/telnyx/voice
  * Handles Telnyx Call Control webhook events for outbound OTP and inbound IVR.
@@ -51,6 +58,8 @@ router.post('/voice', async (req, res) => {
   const eventType = event?.event_type;
   const payload = event?.payload;
   const callControlId = payload?.call_control_id;
+
+  console.log(`[Telnyx Voice Incoming Webhook] Event: ${eventType} | CallControlID: ${callControlId} | From: ${payload?.from} | Direction: ${payload?.direction}`);
 
   // Immediately respond 200 to Telnyx to acknowledge receipt
   res.status(200).json({ received: true });
@@ -102,11 +111,17 @@ router.post('/voice', async (req, res) => {
             JSON.stringify({ action: 'inbound_ivr', step: 'main_menu', callerPhone })
           ).toString('base64');
 
-          const greeting = 'Welcome to Sandesh PhoneMail, the next generation voice and phone-native messaging platform. With Sandesh, your mobile phone number is your secure inbox. To create your Sandesh account right now and receive your login credentials via text message, press 1. To hear about Sandesh features and security, press 2.';
+          const greeting =
+            'Welcome to Sandesh PhoneMail. ' +
+            'Press 1 to create your Sandesh account. ' +
+            'Press 2 to reset or change your password. ' +
+            'Press 3 to check your account details. ' +
+            'Press 4 for our security features. ' +
+            'Press 5 to repeat all of these options.';
 
           await robustSpeakOrGather(callControlId, 'gather_using_speak', {
             payload: greeting,
-            valid_digits: '12',
+            valid_digits: '12345',
             minimum_digits: 1,
             maximum_digits: 1,
             timeout_millis: 14000,
@@ -138,36 +153,173 @@ router.post('/voice', async (req, res) => {
             const ivrAccount = await createOrResetIvrAccount(callerPhone);
             logger.info({ email: ivrAccount.email, phone: callerPhone }, '[Telnyx IVR] Account created/updated successfully');
 
-            const endState = Buffer.from(JSON.stringify({ action: 'hangup_after_speak' })).toString('base64');
-            const celebrationSpeech = 'Congratulations! Your Sandesh PhoneMail account has been created successfully. We have sent an SMS to your mobile number with your assigned email address and password. You can now log into your inbox. Thank you for calling Sandesh. Have a wonderful day!';
-            
-            await robustSpeakOrGather(callControlId, 'speak', {
+            const subMenuState = Buffer.from(JSON.stringify({ action: 'inbound_ivr', step: 'sub_menu', callerPhone })).toString('base64');
+            const celebrationSpeech =
+              'Congratulations! Your Sandesh PhoneMail account is ready. ' +
+              'We have sent a text message to your mobile phone with your assigned email address and password. ' +
+              'To revisit the menu options, press 5. Or you may hang up now.';
+
+            await robustSpeakOrGather(callControlId, 'gather_using_speak', {
               payload: celebrationSpeech,
-              client_state: endState,
+              valid_digits: '12345',
+              minimum_digits: 1,
+              maximum_digits: 1,
+              timeout_millis: 10000,
+              client_state: subMenuState,
             });
           } catch (regErr) {
             logger.error({ err: regErr.message, callerPhone }, '[Telnyx IVR] Failed to create account via IVR');
             const endState = Buffer.from(JSON.stringify({ action: 'hangup_after_speak' })).toString('base64');
             await robustSpeakOrGather(callControlId, 'speak', {
-              payload: 'We encountered an error setting up your account. Please visit our website to sign up. Thank you for calling Sandesh. Goodbye.',
+              payload: 'We encountered an error setting up your account. Please visit our website to sign up. Goodbye.',
               client_state: endState,
             });
           }
         }
-        // Option 2: Feature & FAQ Overview
+        // Option 2: Forgot or Change Password
         else if (digits === '2') {
-          logger.info({ callControlId, callerPhone }, '[Telnyx IVR] Playing Sandesh overview and re-prompting gather');
-          const infoState = Buffer.from(
-            JSON.stringify({ action: 'inbound_ivr', step: 'info_menu', callerPhone })
-          ).toString('base64');
+          if (!callerPhone) {
+            logger.warn({ callControlId }, '[Telnyx IVR] Missing caller phone for password reset');
+            const endState = Buffer.from(JSON.stringify({ action: 'hangup_after_speak' })).toString('base64');
+            await robustSpeakOrGather(callControlId, 'speak', {
+              payload: 'We were unable to detect your phone number to reset your password. Goodbye.',
+              client_state: endState,
+            });
+            break;
+          }
+
+          try {
+            logger.info({ callerPhone }, '[Telnyx IVR] Resetting password via voice IVR');
+            const resetResult = await resetPasswordViaIvr(callerPhone);
+            logger.info({ email: resetResult.email, phone: callerPhone }, '[Telnyx IVR] Password reset successfully');
+
+            const subMenuState = Buffer.from(JSON.stringify({ action: 'inbound_ivr', step: 'sub_menu', callerPhone })).toString('base64');
+            const resetSpeech =
+              'Your Sandesh account password has been successfully reset. ' +
+              'We have sent a text message with your new temporary password and login link to your mobile number. ' +
+              'Please check your SMS to sign in and update your password. ' +
+              'To hear the menu options again, press 5. Or you may hang up now.';
+
+            await robustSpeakOrGather(callControlId, 'gather_using_speak', {
+              payload: resetSpeech,
+              valid_digits: '12345',
+              minimum_digits: 1,
+              maximum_digits: 1,
+              timeout_millis: 12000,
+              client_state: subMenuState,
+            });
+          } catch (err) {
+            logger.error({ err: err.message, callerPhone }, '[Telnyx IVR] Failed to reset password via IVR');
+            const endState = Buffer.from(JSON.stringify({ action: 'hangup_after_speak' })).toString('base64');
+            await robustSpeakOrGather(callControlId, 'speak', {
+              payload: 'We encountered an issue resetting your password. Please try again or visit our website. Goodbye.',
+              client_state: endState,
+            });
+          }
+        }
+        // Option 3: Check Account Details
+        else if (digits === '3') {
+          if (!callerPhone) {
+            logger.warn({ callControlId }, '[Telnyx IVR] Missing caller phone for account details');
+            const endState = Buffer.from(JSON.stringify({ action: 'hangup_after_speak' })).toString('base64');
+            await robustSpeakOrGather(callControlId, 'speak', {
+              payload: 'We were unable to detect your phone number to check account details. Goodbye.',
+              client_state: endState,
+            });
+            break;
+          }
+
+          try {
+            logger.info({ callerPhone }, '[Telnyx IVR] Checking account details via voice IVR');
+            const details = await getAccountDetailsViaIvr(callerPhone);
+            const subMenuState = Buffer.from(JSON.stringify({ action: 'inbound_ivr', step: 'sub_menu', callerPhone })).toString('base64');
+
+            if (details.exists) {
+              const emailSpoken = details.email.replace('@', ' at ');
+              const msgWord = details.inboxCount === 1 ? 'message' : 'messages';
+              const detailsSpeech =
+                `Here are your account details. Your registered phone number is ${callerPhone}. ` +
+                `Your Sandesh email address is ${emailSpoken}. ` +
+                `Your account status is active, and you currently have ${details.inboxCount} ${msgWord} in your inbox. ` +
+                `We have also sent a complete summary to your phone via SMS. ` +
+                `To return to the main menu, press 5. Or you may hang up now.`;
+
+              await robustSpeakOrGather(callControlId, 'gather_using_speak', {
+                payload: detailsSpeech,
+                valid_digits: '12345',
+                minimum_digits: 1,
+                maximum_digits: 1,
+                timeout_millis: 12000,
+                client_state: subMenuState,
+              });
+            } else {
+              const noAccountSpeech =
+                'No Sandesh account was found for your phone number. ' +
+                'To create your account now, press 1. ' +
+                'To hear all menu options again, press 5. ' +
+                'Or you may hang up.';
+
+              await robustSpeakOrGather(callControlId, 'gather_using_speak', {
+                payload: noAccountSpeech,
+                valid_digits: '12345',
+                minimum_digits: 1,
+                maximum_digits: 1,
+                timeout_millis: 12000,
+                client_state: subMenuState,
+              });
+            }
+          } catch (err) {
+            logger.error({ err: err.message, callerPhone }, '[Telnyx IVR] Failed to check account details');
+            const endState = Buffer.from(JSON.stringify({ action: 'hangup_after_speak' })).toString('base64');
+            await robustSpeakOrGather(callControlId, 'speak', {
+              payload: 'Unable to retrieve account details at this time. Goodbye.',
+              client_state: endState,
+            });
+          }
+        }
+        // Option 4: Security Features
+        else if (digits === '4') {
+          logger.info({ callControlId, callerPhone }, '[Telnyx IVR] Playing security features overview');
+          const subMenuState = Buffer.from(JSON.stringify({ action: 'inbound_ivr', step: 'sub_menu', callerPhone })).toString('base64');
+          const securitySpeech =
+            'Sandesh PhoneMail is built with zero-trust phone-native security. ' +
+            'Every account is cryptographically anchored to your verified mobile number, eliminating weak credentials and phishing. ' +
+            'Core security features include end-to-end encrypted messaging, automated AI spam protection, ' +
+            'and two-factor authentication via voice and SMS. ' +
+            'Your data is private and never tracked. ' +
+            'To hear all menu options again, press 5. Or press 1 to create an account.';
 
           await robustSpeakOrGather(callControlId, 'gather_using_speak', {
-            payload: 'Sandesh PhoneMail bridges phone numbers and email seamlessly. Every mobile number gets an instant, spam-free inbox with voice verification and complete privacy. To create your account now and receive your password by SMS, press 1. Or hang up to exit.',
-            valid_digits: '1',
+            payload: securitySpeech,
+            valid_digits: '12345',
             minimum_digits: 1,
             maximum_digits: 1,
             timeout_millis: 14000,
-            client_state: infoState,
+            client_state: subMenuState,
+          });
+        }
+        // Option 5: Revisiting All Options
+        else if (digits === '5') {
+          logger.info({ callControlId, callerPhone }, '[Telnyx IVR] Revisiting main menu options');
+          const menuState = Buffer.from(
+            JSON.stringify({ action: 'inbound_ivr', step: 'main_menu', callerPhone })
+          ).toString('base64');
+
+          const repeatGreeting =
+            'Main Menu: ' +
+            'Press 1 to create your Sandesh account. ' +
+            'Press 2 to reset or change your password. ' +
+            'Press 3 to check your account details. ' +
+            'Press 4 for our security features. ' +
+            'Press 5 to repeat all of these options.';
+
+          await robustSpeakOrGather(callControlId, 'gather_using_speak', {
+            payload: repeatGreeting,
+            valid_digits: '12345',
+            minimum_digits: 1,
+            maximum_digits: 1,
+            timeout_millis: 14000,
+            client_state: menuState,
           });
         }
         // Other input or timeout: Graceful exit
@@ -175,7 +327,7 @@ router.post('/voice', async (req, res) => {
           logger.info({ callControlId, digits }, '[Telnyx IVR] No valid option selected, ending call');
           const endState = Buffer.from(JSON.stringify({ action: 'hangup_after_speak' })).toString('base64');
           await robustSpeakOrGather(callControlId, 'speak', {
-            payload: 'Thank you for calling Sandesh PhoneMail. Visit our website at any time to sign up or log in. Goodbye.',
+            payload: 'Thank you for calling Sandesh PhoneMail. Have a wonderful day. Goodbye.',
             client_state: endState,
           });
         }

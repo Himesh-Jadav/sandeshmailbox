@@ -9,7 +9,7 @@ import {
   createSessionToken,
 } from './token.service.js';
 import { formatUserResponse } from '../utils/user.js';
-import { toEmailAddress, normalizePhone } from '../utils/phone.js';
+import { toEmailAddress, normalizePhone, parseRecipientPhone } from '../utils/phone.js';
 import { BadRequestError, UnauthorizedError } from '../utils/errors.js';
 
 const BCRYPT_SALT_ROUNDS = 10;
@@ -50,7 +50,7 @@ export async function requestSetupToken(phone) {
 /**
  * Initiates OTP verification via Telnyx (SMS or Voice Call).
  * @param {string} phone Normalized E.164 phone number
- * @param {'signup' | 'forgot_password' | 'login' | 'generic'} purpose
+ * @param {'signup' | 'forgot_password' | 'login' | 'update_password' | 'generic'} purpose
  * @param {'sms' | 'call'} channel
  * @returns {Promise<{ success: boolean, channel: string, message: string }>}
  */
@@ -63,6 +63,10 @@ export async function startOtp(phone, purpose = 'signup', channel = 'sms') {
 
   if (purpose === 'forgot_password' && !user) {
     throw new BadRequestError('No account found for this phone number. Please sign up.');
+  }
+
+  if (purpose === 'update_password' && !user) {
+    throw new BadRequestError('User account not found. Please log in.');
   }
 
   return await dispatchOtp(phone, purpose, channel);
@@ -115,6 +119,35 @@ export async function resetPassword(resetToken, newPassword) {
 }
 
 /**
+ * Updates a logged-in user's password after verifying the OTP code.
+ * @param {string} userId User document _id
+ * @param {string} phone User normalized phone number
+ * @param {string} otpCode 6-digit verification code
+ * @param {string} newPassword Plain text new password
+ * @returns {Promise<{ success: boolean, message: string }>}
+ */
+export async function updateUserPasswordWithOtp(userId, phone, otpCode, newPassword) {
+  // 1. Verify OTP code specifically issued for 'update_password'
+  await verifyOtpCode(phone, otpCode, 'update_password');
+
+  // 2. Locate user and update password hash
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new BadRequestError('User account not found');
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+  user.passwordHash = passwordHash;
+  user.hasSetPassword = true;
+  await user.save();
+
+  return {
+    success: true,
+    message: 'Password updated successfully',
+  };
+}
+
+/**
  * Sets the user's password using a valid setupToken and returns a session JWT + user.
  * Rejects expired or wrong-scope tokens with a 401.
  * @param {string} setupToken JWT issued by verifyOtp
@@ -144,6 +177,8 @@ export async function setPassword(setupToken, password, publicKey = null) {
       hasSetPassword: true,
       createdVia: 'web',
       aliasIds: [],
+      dob: null,
+      gender: null,
       publicKey: publicKey || null,
     });
   }
@@ -156,21 +191,46 @@ export async function setPassword(setupToken, password, publicKey = null) {
 }
 
 /**
- * Authenticates an existing user using phone and password.
- * @param {string} phone Normalized E.164 phone number
+ * Authenticates an existing user using phone number or PhoneMail address and password.
+ * @param {string} identifier Phone number (+91... / 10 digits) or PhoneMail address (...@sandesh.in)
  * @param {string} password Plain text password
  * @returns {Promise<{ token: string, user: object }>}
  */
-export async function login(phone, password) {
-  const user = await User.findOne({ phone });
+export async function login(identifier, password) {
+  if (!identifier || typeof identifier !== 'string') {
+    throw new UnauthorizedError('Please enter your phone number or PhoneMail address');
+  }
+
+  const raw = identifier.trim();
+  const cleanId = raw.toLowerCase();
+  const orConditions = [];
+
+  // 1. Direct phone match or extracted phone match
+  const normalizedPhone = normalizePhone(raw) || parseRecipientPhone(raw);
+  if (normalizedPhone) {
+    orConditions.push({ phone: normalizedPhone });
+    orConditions.push({ email: toEmailAddress(normalizedPhone) });
+  }
+
+  // 2. Direct email or alias match
+  if (raw.includes('@')) {
+    orConditions.push({ email: cleanId });
+    orConditions.push({ aliasIds: cleanId });
+  } else {
+    const domain = process.env.MAIL_DOMAIN || 'sandesh.in';
+    orConditions.push({ email: `${cleanId}@${domain}` });
+    orConditions.push({ aliasIds: cleanId });
+  }
+
+  const user = await User.findOne({ $or: orConditions });
 
   if (!user || !user.hasSetPassword || !user.passwordHash) {
-    throw new UnauthorizedError('Invalid phone or password');
+    throw new UnauthorizedError('Invalid phone number, PhoneMail, or password');
   }
 
   const isMatch = await bcrypt.compare(password, user.passwordHash);
   if (!isMatch) {
-    throw new UnauthorizedError('Invalid phone or password');
+    throw new UnauthorizedError('Invalid phone number, PhoneMail, or password');
   }
 
   const token = createSessionToken(user);
@@ -257,6 +317,60 @@ export async function createOrResetIvrAccount(rawPhone) {
     email: assignedEmail,
     tempPassword,
     isNewUser,
+    smsSent,
+  };
+}
+
+/**
+ * Resets password for caller via IVR and dispatches new temporary password via SMS.
+ * If account does not exist, registers new account and sends credentials.
+ * @param {string} rawPhone
+ * @returns {Promise<{ user: object, email: string, tempPassword: string, isNewUser: boolean, smsSent: boolean }>}
+ */
+export async function resetPasswordViaIvr(rawPhone) {
+  return await createOrResetIvrAccount(rawPhone);
+}
+
+/**
+ * Retrieves account summary for IVR caller and dispatches details via SMS.
+ * @param {string} rawPhone
+ * @returns {Promise<{ exists: boolean, phone?: string, email?: string, inboxCount?: number, displayName?: string, smsSent?: boolean }>}
+ */
+export async function getAccountDetailsViaIvr(rawPhone) {
+  const phone = normalizePhone(rawPhone) || rawPhone;
+  if (!phone) {
+    return { exists: false };
+  }
+
+  const user = await User.findOne({ phone });
+  if (!user) {
+    return { exists: false, phone };
+  }
+
+  const Message = (await import('../models/Message.js')).default;
+  const inboxCount = await Message.countDocuments({
+    userStatuses: { $elemMatch: { userId: user._id, folder: 'inbox' } },
+  });
+
+  const email = user.email || toEmailAddress(phone);
+  const publicBaseUrl = process.env.PUBLIC_WEBHOOK_BASE_URL?.trim() || 'https://sameergoyal.taila324b5.ts.net';
+
+  const smsBody = `Sandesh Account Details:\nPhone: ${phone}\nEmail: ${email}\nStatus: Active\nInbox: ${inboxCount} message(s)\nLogin: ${publicBaseUrl}`;
+
+  let smsSent = false;
+  try {
+    await sendTelnyxSms(phone, smsBody);
+    smsSent = true;
+  } catch (smsErr) {
+    console.error(`[SANDESH IVR] Failed to send account details SMS to ${phone}:`, smsErr.message);
+  }
+
+  return {
+    exists: true,
+    phone,
+    email,
+    inboxCount,
+    displayName: user.displayName || 'Sandesh User',
     smsSent,
   };
 }

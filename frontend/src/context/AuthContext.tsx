@@ -14,7 +14,7 @@ interface AuthContextType {
   userSecretKey: string | null;
   userPublicKey: string | null;
   keyFingerprint: string;
-  login: (phone: string, password: string) => Promise<User>;
+  login: (identifier: string, password: string) => Promise<User>;
   registerWithPassword: (setupToken: string, password: string) => Promise<User>;
   logout: () => void;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
@@ -74,8 +74,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadUser();
   }, [initE2eeKeys]);
 
-  const login = async (phone: string, password: string): Promise<User> => {
-    const data = await api.login(phone, password);
+  const login = async (identifier: string, password: string): Promise<User> => {
+    const data = await api.login(identifier, password);
     localStorage.setItem(TOKEN_KEY, data.token);
     setToken(data.token);
     setUser(data.user);

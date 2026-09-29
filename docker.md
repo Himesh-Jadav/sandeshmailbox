@@ -1,6 +1,32 @@
-# Docker Setup — PhoneMail
+# Docker Setup — Sandesh (PhoneMail)
 
-This project runs fully via Docker Compose. No manual dependency installs, no dashboard clicking — one command builds and starts everything: backend (API + self-hosted SMTP server), frontend, and MongoDB.
+One command builds and starts the entire stack: **backend** (REST API + self-hosted SMTP server), **frontend** (Vite React + Nginx reverse proxy), and **MongoDB**.
+
+---
+
+## Quick Start (For anyone receiving the repo)
+
+```bash
+# 1. Clone the repo
+git clone <repo-url>
+cd sandesh
+
+# 2. Copy the example env and fill in your keys
+cp .env.example .env
+
+# 3. Build and start everything
+docker compose up --build
+
+# 4. Open the app
+#    Frontend:  http://localhost:3000
+#    API:       http://localhost:5000/api/health
+```
+
+That's it. The first run takes a few minutes (pulling base images + installing deps). After that it's much faster.
+
+> **Demo accounts** are auto-seeded on first run:
+> - `+919876543210` / `password123` (Alice Sharma)
+> - `+919876543211` / `password123` (Bob Verma)
 
 ---
 
@@ -16,52 +42,49 @@ This project runs fully via Docker Compose. No manual dependency installs, no da
 
 ---
 
-## First-time project setup
+## Architecture
 
-1. Clone the repo and go into it:
-   ```bash
-   git clone <repo-url>
-   cd <repo-folder>
-   ```
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    docker compose                           │
+│                                                             │
+│  ┌──────────────┐   ┌──────────────┐   ┌───────────────┐   │
+│  │   frontend    │   │   backend     │   │    mongo       │   │
+│  │  (Nginx:80)   │──▶│  (Node:5000)  │──▶│  (Mongo:27017) │   │
+│  │   :3000→:80   │   │  (SMTP:2525)  │   │   mongo-data   │   │
+│  └──────────────┘   │  uploads-data  │   └───────────────┘   │
+│                      └──────────────┘                        │
+│                                                             │
+│                    sandesh-network (bridge)                  │
+└─────────────────────────────────────────────────────────────┘
+```
 
-2. Copy the example env file and fill in real values (Twilio/MSG91/textbee keys, JWT secret, etc.):
-   ```bash
-   cp .env.example .env
-   ```
-   > `.env` is git-ignored — never commit real keys. `.env.example` should always have placeholder values so anyone can see what's required.
-
-3. Build and start everything:
-   ```bash
-   docker compose up --build
-   ```
-   First run takes a few minutes (pulling base images + installing deps). After that it's much faster.
-
-4. Once it's up:
-   - Frontend: `http://localhost:3000` (adjust to whatever port you exposed)
-   - Backend API: `http://localhost:5000` (adjust to your port)
-   - MongoDB: running internally on the Docker network, no need to touch it directly
-
-5. Stop everything:
-   ```bash
-   docker compose down
-   ```
+- **Frontend** serves the React SPA and reverse-proxies `/api/*` requests to the backend
+- **Backend** runs the Express API (port 5000) and a self-hosted SMTP server (port 2525)
+- **MongoDB** stores all data; the `mongo-data` volume persists across restarts
 
 ---
 
-## Project structure this expects
+## Environment Variables
 
-```
-/
-├── backend/
-│   ├── Dockerfile
-│   └── ... (Node/Express + SMTP server, port 2525)
-├── frontend/
-│   ├── Dockerfile
-│   └── ... (React app)
-├── docker-compose.yml
-├── .env.example
-└── .env            (not committed)
-```
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `MONGODB_URI` | No | `mongodb://mongo:27017/phonemail` | MongoDB connection string (Docker default works out of the box) |
+| `JWT_SECRET` | **Yes** | `change-me-in-production` | Secret for signing JWT tokens |
+| `MAIL_DOMAIN` | No | `sandesh.in` | Email domain for all accounts |
+| `FRONTEND_PORT` | No | `3000` | Host port for the frontend |
+| `BACKEND_PORT` | No | `5000` | Host port for the backend API |
+| `SMTP_PORT` | No | `2525` | Host port for the SMTP server |
+| `TELNYX_API_KEY` | Optional | — | Telnyx API key for SMS/Voice |
+| `TELNYX_PHONE_NUMBER` | Optional | — | Your Telnyx phone number (E.164) |
+| `TELNYX_CONNECTION_ID` | Optional | — | Telnyx Call Control App ID |
+| `TELNYX_MESSAGING_PROFILE_ID` | Optional | — | Telnyx Messaging Profile ID |
+| `PUBLIC_WEBHOOK_BASE_URL` | Optional | — | Public URL for Telnyx webhooks |
+| `GROQ_API_KEY` | Optional | — | Groq API key (chatbot + spam + email assist) |
+| `GROQ_MODEL` | No | `qwen/qwen3.8-27b` | Groq model to use |
+| `LOG_LEVEL` | No | `info` | Pino log level |
+
+> **Telnyx and Groq are optional** — the app works without them (SMS/Voice features are disabled, AI features use fallbacks).
 
 ---
 
@@ -83,58 +106,80 @@ This project runs fully via Docker Compose. No manual dependency installs, no da
 
 ## Updating after you change something
 
-**Rule of thumb:** if you changed *code or dependencies*, rebuild. If you only changed data (e.g. testing with the DB), you don't need to rebuild.
+**Rule of thumb:** if you changed *code or dependencies*, rebuild. If you only changed data, you don't need to rebuild.
 
 - **Changed backend or frontend code / added an npm package:**
   ```bash
   docker compose up --build
   ```
-  This rebuilds only the images whose source changed — Docker caches layers, so it's usually fast.
+  Docker caches layers, so only changed images get rebuilt — usually fast.
 
 - **Changed only `.env` values:**
   ```bash
   docker compose down
   docker compose up
   ```
-  (No `--build` needed — env vars are re-read on start, not baked into the image.)
+  (No `--build` needed — env vars are read on start, not baked into the image.)
 
-- **Changed `docker-compose.yml` itself** (e.g. added a new service, changed ports):
+- **Changed `docker-compose.yml` itself:**
   ```bash
   docker compose down
   docker compose up --build
   ```
 
-- **Want a completely clean slate** (fresh DB, no cached layers, as if cloning fresh):
+- **Want a completely clean slate** (fresh DB, no cached layers):
   ```bash
   docker compose down -v
   docker system prune -f
   docker compose up --build
   ```
-  Use this before final judging to make sure it genuinely works from zero.
 
-- **Only rebuild one service** (faster than rebuilding everything):
+- **Only rebuild one service:**
   ```bash
   docker compose up --build backend
   ```
 
 ---
 
+## Project structure
+
+```
+sandesh/
+├── backend/
+│   ├── Dockerfile          ← Node 20 slim + dumb-init
+│   ├── src/                ← Express API + SMTP server
+│   ├── migrations/         ← migrate-mongo scripts
+│   └── uploads/            ← Avatar storage (Docker volume)
+├── frontend/
+│   ├── Dockerfile          ← Multi-stage: Vite build → Nginx
+│   ├── nginx.conf          ← Reverse proxy for /api → backend
+│   └── src/                ← React + TypeScript app
+├── docker-compose.yml      ← Orchestrates all 3 services
+├── .env.example            ← Template for environment variables
+└── .env                    ← Your actual config (git-ignored)
+```
+
+---
+
 ## Before submitting / judging
 
-Run this exact sequence to simulate what a judge will experience:
+Run this exact sequence to simulate a fresh clone:
 
 ```bash
 docker compose down -v
 docker compose up --build
 ```
 
-If this fails on a clean run, it will fail for the judges too. Fix it before the deadline, not during the demo.
+If this fails on a clean run, it will fail for anyone receiving the repo. Fix it first.
 
 ---
 
 ## Common issues
 
-- **`docker compose` not found** → older Docker installs use the hyphenated `docker-compose` instead. Try that if the spaced version fails.
-- **Port already in use** → something on your machine (a local Mongo, another server) is using the same port. Either stop it, or change the port mapping in `docker-compose.yml` (left side of `"3000:3000"` is the host port — change that).
-- **Containers can't reach MongoDB** → inside Docker, use the service name from `docker-compose.yml` (e.g. `mongo`) as the hostname, never `localhost`. `mongodb://mongo:27017/phonemail`, not `mongodb://localhost:27017/phonemail`.
-- **SMTP port 2525 not reachable from outside** → this is expected/fine for judging on a laptop; note it clearly in the README/demo script so it's not a surprise mid-demo.
+| Problem | Solution |
+|---------|----------|
+| `docker compose` not found | Older Docker installs use `docker-compose` (hyphenated). Try that. |
+| Port already in use | Something on your machine uses the same port. Change `FRONTEND_PORT`, `BACKEND_PORT`, or `SMTP_PORT` in `.env`. |
+| Containers can't reach MongoDB | Inside Docker, use the service name `mongo` as hostname, never `localhost`. |
+| SMTP port 2525 not reachable from outside | Expected — the SMTP server is for internal closed-loop delivery. Note this in your demo. |
+| `bcrypt` build fails | The backend uses `node:20-slim` (Debian) specifically because Alpine doesn't have pre-built bcrypt binaries. Don't switch to Alpine. |

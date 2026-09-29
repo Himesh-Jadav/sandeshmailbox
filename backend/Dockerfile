@@ -1,24 +1,36 @@
-# Use Node.js 20 LTS Debian slim for fast builds and pre-built native module support (bcrypt)
+# ── Sandesh Backend Dockerfile ─────────────────────────────────────────────────
+# Node.js 20 LTS on Debian Slim — required for bcrypt native bindings
+
 FROM node:20-slim
+
+# Install dumb-init for proper PID 1 signal handling (graceful shutdown)
+RUN apt-get update && apt-get install -y --no-install-recommends dumb-init \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy dependency manifests
+# Copy dependency manifests first (Docker layer caching)
 COPY package*.json ./
 
-# Install application dependencies
-RUN npm ci
+# Install production dependencies only
+RUN npm ci --omit=dev
 
-# Copy backend source
+# Copy backend source code
 COPY . .
 
-# Expose REST API port (5000) and self-hosted SMTP port (2525)
+# Create uploads directory structure for avatar storage
+RUN mkdir -p uploads/avatars
+
+# Expose REST API port and self-hosted SMTP port
 EXPOSE 5000 2525
 
-# Default environment configuration
+# Default environment configuration for Docker context
 ENV NODE_ENV=production \
     PORT=5000 \
     SMTP_PORT=2525
 
-# Launch the PhoneMail backend service
+# Use dumb-init to handle signals properly (SIGTERM → graceful shutdown)
+ENTRYPOINT ["dumb-init", "--"]
+
+# Launch the Sandesh backend service
 CMD ["node", "src/index.js"]

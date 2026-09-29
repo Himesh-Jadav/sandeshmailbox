@@ -3,7 +3,12 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import { TopNavbar } from '../components/layout/TopNavbar';
-import { getUserOrContactName, formatPhoneNumber } from '../lib/formatters';
+import {
+  getUserOrContactName,
+  formatPhoneNumber,
+  formatDobDisplay,
+  formatGenderDisplay,
+} from '../lib/formatters';
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -27,6 +32,22 @@ export const ProfilePage: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
+
+  // Password change states
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [pwdStep, setPwdStep] = useState<1 | 2>(1); // 1 = Request OTP, 2 = Verify OTP & Set Password
+  const [pwdChannel, setPwdChannel] = useState<'sms' | 'call'>('sms');
+  const [pwdOtpCode, setPwdOtpCode] = useState('');
+  const [pwdNewPassword, setPwdNewPassword] = useState('');
+  const [pwdConfirmPassword, setPwdConfirmPassword] = useState('');
+  const [pwdShowNew, setPwdShowNew] = useState(false);
+  const [pwdShowConfirm, setPwdShowConfirm] = useState(false);
+  const [pwdIsSendingOtp, setPwdIsSendingOtp] = useState(false);
+  const [pwdIsUpdating, setPwdIsUpdating] = useState(false);
+  const [pwdCooldown, setPwdCooldown] = useState(0);
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [pwdSuccess, setPwdSuccess] = useState<string | null>(null);
+  const [pwdInfoMessage, setPwdInfoMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -120,8 +141,8 @@ export const ProfilePage: React.FC = () => {
       const response = await api.updateMe(
         {
           displayName: displayName.trim(),
-          dob: dob || null,
-          gender: gender || null,
+          dob: dob.trim() || null,
+          gender: gender.trim() || null,
           profilePictureUrl: finalAvatarUrl,
         },
         token
@@ -159,48 +180,96 @@ export const ProfilePage: React.FC = () => {
     navigate('/login', { replace: true });
   };
 
+  // Password resend cooldown timer
+  useEffect(() => {
+    if (pwdCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setPwdCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [pwdCooldown]);
+
+  const handleRequestPasswordOtp = async (overrideChannel?: 'sms' | 'call') => {
+    if (!token) return;
+    const targetChannel = overrideChannel || pwdChannel;
+    setPwdIsSendingOtp(true);
+    setPwdError(null);
+    setPwdSuccess(null);
+
+    try {
+      const res = await api.requestPasswordOtp(targetChannel, token);
+      setPwdInfoMessage(
+        res.message ||
+        (targetChannel === 'call'
+          ? 'Calling your phone number with the verification code...'
+          : 'Verification code sent via SMS.')
+      );
+      setPwdStep(2);
+      setPwdCooldown(30);
+    } catch (err: any) {
+      setPwdError(err.message || 'Failed to dispatch verification code');
+    } finally {
+      setPwdIsSendingOtp(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+
+    const code = pwdOtpCode.trim();
+    if (!code || code.length < 4) {
+      setPwdError('Please enter the 6-digit verification code');
+      return;
+    }
+
+    if (pwdNewPassword.length < 6) {
+      setPwdError('Password must be at least 6 characters long');
+      return;
+    }
+
+    if (pwdNewPassword !== pwdConfirmPassword) {
+      setPwdError('Passwords do not match');
+      return;
+    }
+
+    setPwdIsUpdating(true);
+    setPwdError(null);
+    setPwdSuccess(null);
+
+    try {
+      const res = await api.updatePasswordWithOtp(code, pwdNewPassword, token);
+      setPwdSuccess(res.message || 'Password updated successfully!');
+      setPwdOtpCode('');
+      setPwdNewPassword('');
+      setPwdConfirmPassword('');
+      setPwdInfoMessage(null);
+      setTimeout(() => {
+        setIsChangingPassword(false);
+        setPwdStep(1);
+      }, 2500);
+    } catch (err: any) {
+      setPwdError(err.message || 'Failed to update password');
+    } finally {
+      setPwdIsUpdating(false);
+    }
+  };
+
+  const handleCancelPasswordChange = () => {
+    setIsChangingPassword(false);
+    setPwdStep(1);
+    setPwdOtpCode('');
+    setPwdNewPassword('');
+    setPwdConfirmPassword('');
+    setPwdError(null);
+    setPwdSuccess(null);
+    setPwdInfoMessage(null);
+  };
+
   const displayNameOrUsername = getUserOrContactName(user);
   const initials = displayNameOrUsername.slice(0, 2).toUpperCase();
-
-  // Format DOB display
-  const formatDob = (dobStr?: string | null) => {
-    if (!dobStr) return { formatted: 'Not provided', age: null };
-    const date = new Date(dobStr);
-    if (isNaN(date.getTime())) return { formatted: dobStr, age: null };
-
-    const formatted = date.toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-
-    const now = new Date();
-    let age = now.getFullYear() - date.getFullYear();
-    const m = now.getMonth() - date.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < date.getDate())) {
-      age--;
-    }
-    return { formatted, age: age >= 0 ? age : null };
-  };
-
-  // Format Gender display
-  const formatGender = (g?: string | null) => {
-    switch (g?.toLowerCase()) {
-      case 'male':
-        return { label: 'Male', icon: '♂', color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/50 border-blue-200/80 dark:border-blue-900/60' };
-      case 'female':
-        return { label: 'Female', icon: '♀', color: 'text-pink-600 bg-pink-50 dark:bg-pink-950/50 border-pink-200/80 dark:border-pink-900/60' };
-      case 'other':
-        return { label: 'Non-binary / Other', icon: '⚧', color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/50 border-purple-200/80 dark:border-purple-900/60' };
-      case 'prefer_not_to_say':
-        return { label: 'Prefer not to say', icon: '•', color: 'text-slate-600 bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700' };
-      default:
-        return { label: 'Not specified', icon: '•', color: 'text-slate-500 bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700' };
-    }
-  };
-
-  const dobInfo = formatDob(user.dob);
-  const genderInfo = formatGender(user.gender);
+  const dobInfo = formatDobDisplay(user.dob);
+  const genderDisplay = formatGenderDisplay(user.gender);
 
   // Active display avatar (preview takes precedence during edit, then user.profilePictureUrl)
   const currentAvatarSrc = avatarPreview || profilePictureUrl || user.profilePictureUrl;
@@ -325,12 +394,7 @@ export const ProfilePage: React.FC = () => {
                   </button>
                 </div>
 
-                {user.gender && (
-                  <div className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl text-xs font-medium border ${genderInfo.color}`}>
-                    <span>{genderInfo.icon}</span>
-                    <span>{genderInfo.label}</span>
-                  </div>
-                )}
+
               </div>
             </div>
           </div>
@@ -463,9 +527,9 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
                 {/* 2. Form Fields Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-4">
                   {/* Name field */}
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                       Full Name / Display Name
                     </label>
@@ -479,36 +543,39 @@ export const ProfilePage: React.FC = () => {
                     />
                   </div>
 
-                  {/* Date of Birth field */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                      Date of Birth
-                    </label>
-                    <input
-                      type="date"
-                      value={dob}
-                      onChange={(e) => setDob(e.target.value)}
-                      max={new Date().toISOString().split('T')[0]}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:bg-white dark:focus:bg-slate-800 transition"
-                    />
-                  </div>
+                  {/* DOB and Gender Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Date of Birth field */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                        Date of Birth
+                      </label>
+                      <input
+                        type="date"
+                        value={dob}
+                        max={new Date().toISOString().split('T')[0]}
+                        onChange={(e) => setDob(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:bg-white dark:focus:bg-slate-800 transition"
+                      />
+                    </div>
 
-                  {/* Gender selection field */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                      Gender
-                    </label>
-                    <select
-                      value={gender}
-                      onChange={(e) => setGender(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:bg-white dark:focus:bg-slate-800 transition"
-                    >
-                      <option value="">Select Gender</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Non-binary / Other</option>
-                      <option value="prefer_not_to_say">Prefer not to say</option>
-                    </select>
+                    {/* Gender field */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                        Gender
+                      </label>
+                      <select
+                        value={gender}
+                        onChange={(e) => setGender(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-sky-500 focus:bg-white dark:focus:bg-slate-800 transition cursor-pointer"
+                      >
+                        <option value="">Select Gender</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                        <option value="prefer_not_to_say">Prefer not to say</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -564,16 +631,13 @@ export const ProfilePage: React.FC = () => {
               <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
                 Gender
               </span>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {genderInfo.label}
-                </span>
-                {user.gender && (
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium border ${genderInfo.color}`}>
-                    {genderInfo.icon}
-                  </span>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 block truncate">
+                {genderDisplay ? (
+                  <span>{genderDisplay}</span>
+                ) : (
+                  <span className="text-slate-400 italic font-normal">Not specified</span>
                 )}
-              </div>
+              </span>
             </div>
 
             {/* 3. Date of Birth */}
@@ -581,17 +645,23 @@ export const ProfilePage: React.FC = () => {
               <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
                 Date of Birth
               </span>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {dobInfo.formatted}
-                </span>
-                {dobInfo.age !== null && (
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
-                    ({dobInfo.age} yrs)
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 block truncate">
+                {dobInfo ? (
+                  <span>
+                    {dobInfo.formatted}
+                    {dobInfo.age !== null && (
+                      <span className="ml-1.5 text-xs font-normal text-slate-500 dark:text-slate-400">
+                        ({dobInfo.age} yrs)
+                      </span>
+                    )}
                   </span>
+                ) : (
+                  <span className="text-slate-400 italic font-normal">Not provided</span>
                 )}
-              </div>
+              </span>
             </div>
+
+
 
             {/* 4. Authenticated Phone */}
             <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 flex items-start justify-between space-x-3 transition hover:bg-slate-50 dark:hover:bg-slate-800/80">
@@ -661,6 +731,334 @@ export const ProfilePage: React.FC = () => {
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Account Security & Password Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-[24px] sm:rounded-[28px] p-6 sm:p-8 shadow-[0_20px_45px_-10px_rgba(0,0,0,0.06),0_2px_8px_-2px_rgba(0,0,0,0.03)] dark:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.45)] space-y-5 transition-colors duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start space-x-3.5">
+              <div className="p-3 bg-gradient-to-br from-blue-500/10 to-indigo-500/15 dark:from-blue-500/20 dark:to-indigo-500/25 text-blue-600 dark:text-blue-400 rounded-2xl shrink-0 mt-0.5 border border-blue-500/20">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div className="space-y-0.5">
+                <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
+                  <span>Security &amp; Password</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60">
+                    OTP Protected
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Update your login password with real-time verification sent to your authenticated phone.
+                </p>
+              </div>
+            </div>
+
+            {!isChangingPassword && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsChangingPassword(true);
+                  setPwdStep(1);
+                  setPwdError(null);
+                  setPwdSuccess(null);
+                }}
+                className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60 text-xs font-semibold rounded-xl transition-all duration-150 cursor-pointer active:scale-95 shadow-2xs self-start sm:self-auto"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                <span>Update Password</span>
+              </button>
+            )}
+          </div>
+
+          {/* Collapsible / Active Password Change Flow */}
+          {isChangingPassword && (
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 animate-in fade-in duration-200 space-y-4">
+              {/* Feedback Banners */}
+              {pwdSuccess && (
+                <div className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl p-3.5 text-xs flex items-center space-x-2.5 shadow-2xs">
+                  <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="font-medium">{pwdSuccess}</span>
+                </div>
+              )}
+
+              {pwdError && (
+                <div className="bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 rounded-xl p-3.5 text-xs flex items-center space-x-2.5 shadow-2xs">
+                  <svg className="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="font-medium">{pwdError}</span>
+                </div>
+              )}
+
+              {/* STEP 1: Request OTP */}
+              {pwdStep === 1 && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Step 1: Identity Verification via OTP
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        A one-time verification code will be sent to your authenticated phone number:
+                      </p>
+                    </div>
+                    <span className="font-mono text-xs font-bold px-3 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-200 self-start sm:self-auto">
+                      {formatPhoneNumber(user.phone)}
+                    </span>
+                  </div>
+
+                  {/* Channel selection */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wider">
+                      Verification Delivery Method
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setPwdChannel('sms')}
+                        className={`flex items-center space-x-2.5 p-3 rounded-xl border text-xs font-medium transition cursor-pointer text-left ${
+                          pwdChannel === 'sms'
+                            ? 'bg-blue-50/80 dark:bg-blue-950/50 border-blue-500/60 dark:border-blue-700 text-blue-900 dark:text-blue-100 shadow-2xs'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className={`p-1.5 rounded-lg ${pwdChannel === 'sms' ? 'bg-blue-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="font-semibold">SMS Message</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Receive 6-digit code via text</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPwdChannel('call')}
+                        className={`flex items-center space-x-2.5 p-3 rounded-xl border text-xs font-medium transition cursor-pointer text-left ${
+                          pwdChannel === 'call'
+                            ? 'bg-blue-50/80 dark:bg-blue-950/50 border-blue-500/60 dark:border-blue-700 text-blue-900 dark:text-blue-100 shadow-2xs'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className={`p-1.5 rounded-lg ${pwdChannel === 'call' ? 'bg-blue-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="font-semibold">Voice Phone Call</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Receive spoken code via phone call</p>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end space-x-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelPasswordChange}
+                      className="px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700/80 rounded-xl transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRequestPasswordOtp()}
+                      disabled={pwdIsSendingOtp}
+                      className="inline-flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-500/20 transition active:scale-98 disabled:opacity-50 cursor-pointer"
+                    >
+                      {pwdIsSendingOtp && (
+                        <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      )}
+                      <span>Send Verification Code</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: Enter OTP & Set New Password */}
+              {pwdStep === 2 && (
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
+                  {pwdInfoMessage && (
+                    <div className="bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-200 rounded-xl p-3 text-xs flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-4 h-4 text-sky-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>{pwdInfoMessage}</span>
+                      </div>
+                      <span className="font-mono font-semibold text-[11px]">
+                        {formatPhoneNumber(user.phone)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 space-y-4">
+                    {/* OTP Code input */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          6-Digit Verification Code
+                        </label>
+                        {pwdCooldown > 0 ? (
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            Resend in {pwdCooldown}s
+                          </span>
+                        ) : (
+                          <div className="flex items-center space-x-2 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => handleRequestPasswordOtp('sms')}
+                              disabled={pwdIsSendingOtp}
+                              className="text-sky-600 dark:text-sky-400 hover:underline cursor-pointer font-medium"
+                            >
+                              Resend SMS
+                            </button>
+                            <span className="text-slate-300 dark:text-slate-600">•</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRequestPasswordOtp('call')}
+                              disabled={pwdIsSendingOtp}
+                              className="text-sky-600 dark:text-sky-400 hover:underline cursor-pointer font-medium"
+                            >
+                              Voice Call
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        value={pwdOtpCode}
+                        onChange={(e) => setPwdOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder="••••••"
+                        className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-base tracking-[0.4em] font-bold text-slate-900 dark:text-slate-100 placeholder-slate-300 dark:placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* New Password & Confirm Password */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                      {/* New Password */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                          New Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={pwdShowNew ? 'text' : 'password'}
+                            value={pwdNewPassword}
+                            onChange={(e) => setPwdNewPassword(e.target.value)}
+                            placeholder="At least 6 characters"
+                            className="w-full pl-3.5 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPwdShowNew((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+                          >
+                            {pwdShowNew ? (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                        {pwdNewPassword.length > 0 && pwdNewPassword.length < 6 && (
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                            Password must be at least 6 characters
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Confirm New Password */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                          Confirm New Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={pwdShowConfirm ? 'text' : 'password'}
+                            value={pwdConfirmPassword}
+                            onChange={(e) => setPwdConfirmPassword(e.target.value)}
+                            placeholder="Re-enter new password"
+                            className="w-full pl-3.5 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPwdShowConfirm((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+                          >
+                            {pwdShowConfirm ? (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                        {pwdConfirmPassword.length > 0 && pwdNewPassword !== pwdConfirmPassword && (
+                          <p className="text-[10px] text-rose-600 dark:text-rose-400 mt-1">
+                            Passwords do not match
+                          </p>
+                        )}
+                        {pwdConfirmPassword.length > 0 && pwdNewPassword === pwdConfirmPassword && (
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center space-x-1">
+                            <span>✓</span>
+                            <span>Passwords match</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end space-x-2.5 pt-2">
+                      <button
+                        type="button"
+                        onClick={handleCancelPasswordChange}
+                        className="px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700/80 rounded-xl transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={
+                          pwdIsUpdating ||
+                          pwdOtpCode.length < 4 ||
+                          pwdNewPassword.length < 6 ||
+                          pwdNewPassword !== pwdConfirmPassword
+                        }
+                        className="inline-flex items-center space-x-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-500/20 transition active:scale-98 disabled:opacity-50 cursor-pointer"
+                      >
+                        {pwdIsUpdating && (
+                          <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        )}
+                        <span>Confirm &amp; Update Password</span>
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Bottom Sign Out Action */}

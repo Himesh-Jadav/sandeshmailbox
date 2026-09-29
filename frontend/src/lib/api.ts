@@ -64,7 +64,7 @@ export const api = {
 
   async startOtp(
     phone: string,
-    purpose: 'signup' | 'forgot_password' | 'login' | 'generic' = 'signup',
+    purpose: 'signup' | 'forgot_password' | 'login' | 'update_password' | 'generic' = 'signup',
     channel: 'sms' | 'call' = 'sms'
   ): Promise<{ success: boolean; channel: string; message: string }> {
     const res = await fetch(`${API_BASE}/auth/otp/start`, {
@@ -78,7 +78,7 @@ export const api = {
   async verifyOtp(
     phone: string,
     code: string,
-    purpose: 'signup' | 'forgot_password' | 'login' | 'generic' = 'signup'
+    purpose: 'signup' | 'forgot_password' | 'login' | 'update_password' | 'generic' = 'signup'
   ): Promise<{ setupToken?: string; resetToken?: string; phone: string }> {
     const res = await fetch(`${API_BASE}/auth/otp/verify`, {
       method: 'POST',
@@ -106,11 +106,11 @@ export const api = {
     return handleResponse<AuthResponse>(res);
   },
 
-  async login(phone: string, password: string): Promise<AuthResponse> {
+  async login(identifier: string, password: string): Promise<AuthResponse> {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, password }),
+      body: JSON.stringify({ identifier, phone: identifier, password }),
     });
     return handleResponse<AuthResponse>(res);
   },
@@ -157,5 +157,36 @@ export const api = {
       body: formData,
     });
     return handleResponse<{ user: User; profilePictureUrl: string }>(res);
+  },
+
+  async requestPasswordOtp(
+    channel: 'sms' | 'call' = 'sms',
+    token: string
+  ): Promise<{ success: boolean; channel: string; message: string }> {
+    const res = await fetch(`${API_BASE}/me/password/otp/start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ channel }),
+    });
+    return handleResponse<{ success: boolean; channel: string; message: string }>(res);
+  },
+
+  async updatePasswordWithOtp(
+    otpCode: string,
+    newPassword: string,
+    token: string
+  ): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_BASE}/me/password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ otpCode, newPassword }),
+    });
+    return handleResponse<{ success: boolean; message: string }>(res);
   },
 };

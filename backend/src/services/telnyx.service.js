@@ -255,7 +255,7 @@ export async function robustSpeakOrGather(callControlId, action, options = {}) {
 /**
  * Creates and dispatches an OTP via SMS or Voice Call.
  * @param {string} phone Normalized E.164 phone number
- * @param {'signup' | 'forgot_password' | 'login' | 'generic'} purpose
+ * @param {'signup' | 'forgot_password' | 'login' | 'update_password' | 'generic'} purpose
  * @param {'sms' | 'call'} channel
  * @returns {Promise<{ success: boolean, channel: string, message: string }>}
  */

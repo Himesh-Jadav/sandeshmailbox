@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { formatUserResponse } from '../utils/user.js';
 import User from '../models/User.js';
+import { startOtp, updateUserPasswordWithOtp } from '../services/auth.service.js';
 
 const router = Router();
 
@@ -121,13 +122,50 @@ router.patch('/', requireAuth, async (req, res, next) => {
 
     if (data.name !== undefined) user.displayName = data.name;
     if (data.displayName !== undefined) user.displayName = data.displayName;
-    if (data.dob !== undefined) user.dob = data.dob;
-    if (data.gender !== undefined) user.gender = data.gender;
+    if (data.dob !== undefined) user.dob = (data.dob && data.dob.trim()) ? data.dob.trim() : null;
+    if (data.gender !== undefined) user.gender = (data.gender && data.gender.trim()) ? data.gender.trim() : null;
     if (data.profilePictureUrl !== undefined) user.profilePictureUrl = data.profilePictureUrl;
     if (data.publicKey !== undefined) user.publicKey = data.publicKey;
 
     await user.save();
     res.json({ user: formatUserResponse(user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const passwordOtpStartSchema = z.object({
+  channel: z.enum(['sms', 'call']).default('sms'),
+});
+
+const updatePasswordSchema = z.object({
+  otpCode: z.string().trim().min(4, 'Code must be at least 4 characters').max(10),
+  newPassword: z.string().min(6, 'Password must be at least 6 characters').max(128),
+});
+
+/**
+ * POST /api/me/password/otp/start
+ * Initiates OTP verification for password update via SMS or voice call to the authenticated user's phone.
+ */
+router.post('/password/otp/start', requireAuth, async (req, res, next) => {
+  try {
+    const { channel } = passwordOtpStartSchema.parse(req.body || {});
+    const result = await startOtp(req.user.phone, 'update_password', channel);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/me/password
+ * Verifies OTP code and sets the new password for the authenticated user.
+ */
+router.post('/password', requireAuth, async (req, res, next) => {
+  try {
+    const { otpCode, newPassword } = updatePasswordSchema.parse(req.body);
+    const result = await updateUserPasswordWithOtp(req.user._id, req.user.phone, otpCode, newPassword);
+    res.json(result);
   } catch (err) {
     next(err);
   }

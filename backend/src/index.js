@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 
 // Load root .env first, then backend/.env (allowing override)
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
@@ -13,7 +14,7 @@ import meRoutes from './routes/me.routes.js';
 import mailRoutes from './routes/mail.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import faqRoutes from './routes/faq.routes.js';
-import { startSmtpServer } from './services/smtp.service.js';
+import { startSmtpServer, stopSmtpServer } from './services/smtp.service.js';
 import { errorHandler } from './middleware/error.middleware.js';
 import { seedEmailTemplates } from './utils/seedTemplates.js';
 
@@ -259,58 +260,67 @@ async function seedDemoUsers() {
   }
 }
 
-try {
-  logger.info('Connecting to MongoDB...');
-  await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 3500 });
-  logger.info({ uri: MONGODB_URI.replace(/\/\/[^@]+@/, '//<credentials>@') }, 'MongoDB connected');
-  await seedDemoUsers();
-  await seedInitialFaqs();
-  await seedEmailTemplates();
-  await applyMigrations();
-} catch (atlasErr) {
-  logger.warn({ err: atlasErr.message }, 'MongoDB Atlas connection timed out/unreachable. Starting local persistent MongoDB fallback...');
-  const path = (await import('path')).default;
-  const fs = (await import('fs')).default;
-  const dbDir = path.resolve('./.mongo-data');
-  if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+const dbDir = path.resolve('./.mongo-data');
+if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-  const uriFile = path.resolve('./.local-mongo-uri');
-  let connected = false;
+const uriFile = path.resolve('./.local-mongo-uri');
+let connected = false;
 
-  // 1. Try to reconnect to an already-running local MongoDB instance (from previous watch reload)
-  if (fs.existsSync(uriFile)) {
-    try {
-      const cachedUri = fs.readFileSync(uriFile, 'utf8').trim();
-      if (cachedUri) {
-        await mongoose.connect(cachedUri, { serverSelectionTimeoutMS: 2000 });
-        logger.info({ uri: cachedUri }, 'Reconnected to running local MongoDB instance (persisting to .mongo-data)');
-        connected = true;
-      }
-    } catch {
-      try { fs.unlinkSync(uriFile); } catch (_) {}
+// 1. Try to reconnect to an already-running local MongoDB instance (sub-15ms on watch reload)
+if (fs.existsSync(uriFile)) {
+  try {
+    const cachedUri = fs.readFileSync(uriFile, 'utf8').trim();
+    if (cachedUri) {
+      await mongoose.connect(cachedUri, { serverSelectionTimeoutMS: 1500 });
+      logger.info({ uri: cachedUri }, 'Reconnected to running local MongoDB instance (persisting to .mongo-data)');
+      connected = true;
     }
+  } catch {
+    try { fs.unlinkSync(uriFile); } catch (_) {}
   }
+}
 
-  // 2. If not running, start MongoMemoryServer (cleaning up stale locks or orphaned processes)
-  if (!connected) {
-    const { MongoMemoryServer } = await import('mongodb-memory-server');
-    let mongod;
+// 2. If not already connected to local instance, try Atlas / external MONGODB_URI
+if (!connected && MONGODB_URI) {
+  try {
+    logger.info('Connecting to MongoDB...');
+    await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 2500 });
+    logger.info({ uri: MONGODB_URI.replace(/\/\/[^@]+@/, '//<credentials>@') }, 'MongoDB connected');
+    connected = true;
+  } catch (atlasErr) {
+    logger.warn({ err: atlasErr.message }, 'MongoDB connection timed out or unreachable. Starting local persistent MongoDB fallback...');
+  }
+}
 
-    const cleanupLocks = () => {
-      try {
-        if (process.platform === 'win32') {
-          const { execSync } = import('child_process');
-          // Silently clean up any orphaned mongod instances
-          import('child_process').then(cp => {
-            try { cp.execSync('taskkill /F /IM mongod* /T', { stdio: 'ignore' }); } catch (_) {}
-          });
-        }
-        const lockFile = path.join(dbDir, 'mongod.lock');
-        if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
-      } catch (_) {}
-    };
+// 3. Fallback: Start local MongoMemoryServer with persistent .mongo-data
+if (!connected) {
+  const { execSync } = await import('child_process');
+  const { MongoMemoryServer } = await import('mongodb-memory-server');
+  let mongod;
 
+  const cleanupLocks = () => {
+    try {
+      if (process.platform === 'win32') {
+        try { execSync('taskkill /F /FI "IMAGENAME eq mongod*" /T', { stdio: 'ignore' }); } catch (_) {}
+      }
+      const lockFile = path.join(dbDir, 'mongod.lock');
+      if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
+    } catch (_) {}
+  };
+
+  cleanupLocks();
+
+  try {
+    mongod = await MongoMemoryServer.create({
+      instance: {
+        dbPath: dbDir,
+        storageEngine: 'wiredTiger',
+      },
+    });
+  } catch (startErr) {
+    logger.warn({ err: startErr.message }, 'Failed to start wiredTiger persistent instance. Retrying with fresh clean lock...');
     cleanupLocks();
+    await new Promise((r) => setTimeout(r, 600));
 
     try {
       mongod = await MongoMemoryServer.create({
@@ -319,37 +329,24 @@ try {
           storageEngine: 'wiredTiger',
         },
       });
-    } catch (startErr) {
-      logger.warn({ err: startErr.message }, 'Failed to start wiredTiger persistent instance. Retrying with fresh clean lock...');
-      cleanupLocks();
-      await new Promise((r) => setTimeout(r, 600));
-
-      try {
-        mongod = await MongoMemoryServer.create({
-          instance: {
-            dbPath: dbDir,
-            storageEngine: 'wiredTiger',
-          },
-        });
-      } catch (retryErr) {
-        logger.warn({ err: retryErr.message }, 'Falling back to high-resilience in-memory MongoDB...');
-        mongod = await MongoMemoryServer.create();
-      }
+    } catch (retryErr) {
+      logger.warn({ err: retryErr.message }, 'Falling back to high-resilience in-memory MongoDB...');
+      mongod = await MongoMemoryServer.create();
     }
-
-    const uri = mongod.getUri();
-    try {
-      fs.writeFileSync(uriFile, uri, 'utf8');
-    } catch (_) {}
-    await mongoose.connect(uri);
-    logger.info({ uri }, 'Local persistent MongoDB fallback connected (persisting to .mongo-data)');
   }
 
-  await seedDemoUsers();
-  await seedInitialFaqs();
-  await seedEmailTemplates();
-  await applyMigrations();
+  const uri = mongod.getUri();
+  try {
+    fs.writeFileSync(uriFile, uri, 'utf8');
+  } catch (_) {}
+  await mongoose.connect(uri);
+  logger.info({ uri }, 'Local persistent MongoDB fallback connected (persisting to .mongo-data)');
 }
+
+await seedDemoUsers();
+await seedInitialFaqs();
+await seedEmailTemplates();
+await applyMigrations();
 
 // ── Start Local Self-Hosted SMTP Server ───────────────────────────────────────
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '2525', 10);
@@ -364,10 +361,26 @@ const server = app.listen(PORT, () => {
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     logger.error({ port: PORT }, `Port ${PORT} is already in use.`);
+    process.exit(1);
   } else {
     logger.error({ err }, 'HTTP server error');
+    process.exit(1);
   }
 });
+
+// ── Graceful Process Shutdown ─────────────────────────────────────────────────
+async function gracefulShutdown(signal) {
+  logger.info({ signal }, 'Shutting down services gracefully...');
+  try {
+    if (server) server.close();
+    stopSmtpServer();
+    await mongoose.disconnect();
+  } catch (_) {}
+  process.exit(0);
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 
 

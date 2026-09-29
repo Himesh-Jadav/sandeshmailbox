@@ -6,7 +6,12 @@
 **/.local-mongo-uri
 backend/node_modules
 backend/.mongo-data
+backend/uploads
+backend/spam-eval
 frontend/node_modules
 frontend/dist
 .env
 .env.local
+*.md
+docs/
+scripts/
