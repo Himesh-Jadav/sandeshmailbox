@@ -283,64 +283,27 @@ if (fs.existsSync(uriFile)) {
 // 2. If not already connected to local instance, try Atlas / external MONGODB_URI
 if (!connected && MONGODB_URI) {
   try {
-    logger.info('Connecting to MongoDB...');
+    logger.info('Connecting to MongoDB Atlas...');
     await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 2500 });
-    logger.info({ uri: MONGODB_URI.replace(/\/\/[^@]+@/, '//<credentials>@') }, 'MongoDB connected');
+    logger.info({ uri: MONGODB_URI.replace(/\/\/[^@]+@/, '//<credentials>@') }, 'MongoDB Atlas connected');
     connected = true;
   } catch (atlasErr) {
-    logger.warn({ err: atlasErr.message }, 'MongoDB connection timed out or unreachable. Starting local persistent MongoDB fallback...');
+    logger.warn({ err: atlasErr.message }, 'MongoDB Atlas connection failed. Falling back to local MongoDB service...');
   }
 }
 
-// 3. Fallback: Start local MongoMemoryServer with persistent .mongo-data
+// 3. Fallback: Connect to local MongoDB service (from docker-compose)
 if (!connected) {
-  const { execSync } = await import('child_process');
-  const { MongoMemoryServer } = await import('mongodb-memory-server');
-  let mongod;
-
-  const cleanupLocks = () => {
-    try {
-      if (process.platform === 'win32') {
-        try { execSync('taskkill /F /FI "IMAGENAME eq mongod*" /T', { stdio: 'ignore' }); } catch (_) {}
-      }
-      const lockFile = path.join(dbDir, 'mongod.lock');
-      if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
-    } catch (_) {}
-  };
-
-  cleanupLocks();
-
   try {
-    mongod = await MongoMemoryServer.create({
-      instance: {
-        dbPath: dbDir,
-        storageEngine: 'wiredTiger',
-      },
-    });
-  } catch (startErr) {
-    logger.warn({ err: startErr.message }, 'Failed to start wiredTiger persistent instance. Retrying with fresh clean lock...');
-    cleanupLocks();
-    await new Promise((r) => setTimeout(r, 600));
-
-    try {
-      mongod = await MongoMemoryServer.create({
-        instance: {
-          dbPath: dbDir,
-          storageEngine: 'wiredTiger',
-        },
-      });
-    } catch (retryErr) {
-      logger.warn({ err: retryErr.message }, 'Falling back to high-resilience in-memory MongoDB...');
-      mongod = await MongoMemoryServer.create();
-    }
+    logger.info('Connecting to local MongoDB service on docker network...');
+    const localUri = 'mongodb://mongo:27017/phonemail';
+    await mongoose.connect(localUri, { serverSelectionTimeoutMS: 5000 });
+    logger.info({ uri: localUri }, 'Local MongoDB service connected');
+    connected = true;
+  } catch (localErr) {
+    logger.error({ err: localErr.message }, 'Failed to connect to local MongoDB service');
+    process.exit(1);
   }
-
-  const uri = mongod.getUri();
-  try {
-    fs.writeFileSync(uriFile, uri, 'utf8');
-  } catch (_) {}
-  await mongoose.connect(uri);
-  logger.info({ uri }, 'Local persistent MongoDB fallback connected (persisting to .mongo-data)');
 }
 
 await seedDemoUsers();
