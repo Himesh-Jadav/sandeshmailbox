@@ -276,7 +276,7 @@ if (fs.existsSync(uriFile)) {
       connected = true;
     }
   } catch {
-    try { fs.unlinkSync(uriFile); } catch (_) {}
+    try { fs.unlinkSync(uriFile); } catch (_) { }
   }
 }
 
@@ -292,7 +292,6 @@ if (!connected && MONGODB_URI) {
   }
 }
 
-<<<<<<< HEAD
 // 3. Fallback: Connect to local MongoDB service (from docker-compose)
 if (!connected) {
   try {
@@ -305,45 +304,6 @@ if (!connected) {
     logger.error({ err: localErr.message }, 'Failed to connect to local MongoDB service');
     process.exit(1);
   }
-=======
-// 3. Fallback: Try Docker local mongo service or host MongoDB
-if (!connected) {
-  const fallbackUris = [
-    'mongodb://mongo:27017/phonemail',
-    'mongodb://127.0.0.1:27017/phonemail',
-  ];
-
-  for (const fallbackUri of fallbackUris) {
-    try {
-      logger.info({ uri: fallbackUri }, 'Attempting connection to local MongoDB fallback...');
-      await mongoose.connect(fallbackUri, { serverSelectionTimeoutMS: 2500 });
-      logger.info({ uri: fallbackUri }, 'Connected to local MongoDB service');
-      connected = true;
-      break;
-    } catch (_) {
-      // Continue to next fallback candidate
-    }
-  }
-}
-
-// 4. In local development mode only, attempt MongoMemoryServer if installed
-if (!connected && process.env.NODE_ENV !== 'production') {
-  try {
-    const { MongoMemoryServer } = await import('mongodb-memory-server');
-    const mongod = await MongoMemoryServer.create();
-    const uri = mongod.getUri();
-    await mongoose.connect(uri);
-    logger.info({ uri }, 'Connected to in-memory MongoDB fallback');
-    connected = true;
-  } catch (memErr) {
-    logger.warn({ err: memErr.message }, 'MongoMemoryServer not available');
-  }
-}
-
-if (!connected) {
-  logger.fatal('Could not connect to any MongoDB instance. Backend cannot start.');
-  process.exit(1);
->>>>>>> 71c020a23774793f02f8b9292e8fc2a6149866b4
 }
 
 await seedDemoUsers();
@@ -378,7 +338,7 @@ async function gracefulShutdown(signal) {
     if (server) server.close();
     stopSmtpServer();
     await mongoose.disconnect();
-  } catch (_) {}
+  } catch (_) { }
   process.exit(0);
 }
 
