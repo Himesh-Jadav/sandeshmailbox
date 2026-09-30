@@ -292,55 +292,43 @@ if (!connected && MONGODB_URI) {
   }
 }
 
-// 3. Fallback: Start local MongoMemoryServer with persistent .mongo-data
+// 3. Fallback: Try Docker local mongo service or host MongoDB
 if (!connected) {
-  const { execSync } = await import('child_process');
-  const { MongoMemoryServer } = await import('mongodb-memory-server');
-  let mongod;
+  const fallbackUris = [
+    'mongodb://mongo:27017/phonemail',
+    'mongodb://127.0.0.1:27017/phonemail',
+  ];
 
-  const cleanupLocks = () => {
+  for (const fallbackUri of fallbackUris) {
     try {
-      if (process.platform === 'win32') {
-        try { execSync('taskkill /F /FI "IMAGENAME eq mongod*" /T', { stdio: 'ignore' }); } catch (_) {}
-      }
-      const lockFile = path.join(dbDir, 'mongod.lock');
-      if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
-    } catch (_) {}
-  };
-
-  cleanupLocks();
-
-  try {
-    mongod = await MongoMemoryServer.create({
-      instance: {
-        dbPath: dbDir,
-        storageEngine: 'wiredTiger',
-      },
-    });
-  } catch (startErr) {
-    logger.warn({ err: startErr.message }, 'Failed to start wiredTiger persistent instance. Retrying with fresh clean lock...');
-    cleanupLocks();
-    await new Promise((r) => setTimeout(r, 600));
-
-    try {
-      mongod = await MongoMemoryServer.create({
-        instance: {
-          dbPath: dbDir,
-          storageEngine: 'wiredTiger',
-        },
-      });
-    } catch (retryErr) {
-      logger.warn({ err: retryErr.message }, 'Falling back to high-resilience in-memory MongoDB...');
-      mongod = await MongoMemoryServer.create();
+      logger.info({ uri: fallbackUri }, 'Attempting connection to local MongoDB fallback...');
+      await mongoose.connect(fallbackUri, { serverSelectionTimeoutMS: 2500 });
+      logger.info({ uri: fallbackUri }, 'Connected to local MongoDB service');
+      connected = true;
+      break;
+    } catch (_) {
+      // Continue to next fallback candidate
     }
   }
+}
 
-  const uri = mongod.getUri();
+// 4. In local development mode only, attempt MongoMemoryServer if installed
+if (!connected && process.env.NODE_ENV !== 'production') {
   try {
-    fs.writeFileSync(uriFile, uri, 'utf8');
-  } catch (_) {}
-  await mongoose.connect(uri);
-  logger.info({ uri }, 'Local persistent MongoDB fallback connected (persisting to .mongo-data)');
+    const { MongoMemoryServer } = await import('mongodb-memory-server');
+    const mongod = await MongoMemoryServer.create();
+    const uri = mongod.getUri();
+    await mongoose.connect(uri);
+    logger.info({ uri }, 'Connected to in-memory MongoDB fallback');
+    connected = true;
+  } catch (memErr) {
+    logger.warn({ err: memErr.message }, 'MongoMemoryServer not available');
+  }
+}
+
+if (!connected) {
+  logger.fatal('Could not connect to any MongoDB instance. Backend cannot start.');
+  process.exit(1);
 }
 
 await seedDemoUsers();
