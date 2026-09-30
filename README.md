@@ -693,16 +693,6 @@ npm run dev
 
 <br/>
 
-## Team
-
-| Role | Owns |
-|---|---|
-| **Engineer 1** | SMTP server, message/thread storage, GridFS attachments, spam detection |
-| **Engineer 2** | Auth (OTP + password), schema design, Telnyx (SMS + Voice), AI integration |
-| **Engineer 3** | React frontend: login, inbox, compose/reply, thread view, profile, settings |
-
-<br/>
-
 ## Documentation
 
 | Document | What's inside |
