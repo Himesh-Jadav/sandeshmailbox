@@ -52,7 +52,7 @@
 
 <br/><br/>
 
-<a href="(https://drive.google.com/file/d/1NbmP1FIwmeUtu3pNWc6dDmciqD6XKy2T/view?usp=sharing)">
+<a href="https://drive.google.com/file/d/1NbmP1FIwmeUtu3pNWc6dDmciqD6XKy2T/view?usp=sharing">
   <img src="https://img.shields.io/badge/Watch_on-Google_Drive-FF6B35?style=for-the-badge&logo=googledrive&logoColor=white" alt="Watch on Google Drive"/>
 </a>
 
