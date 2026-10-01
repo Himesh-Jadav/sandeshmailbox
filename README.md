@@ -36,6 +36,28 @@
 
 <br/>
 
+## Demo Video
+
+<div align="center">
+
+<a href="YOUR_GOOGLE_DRIVE_LINK">
+  <img src="https://api.iconify.design/lucide:circle-play.svg?color=%23FF6B35" width="56" alt="Play demo video"/>
+</a>
+
+<br/>
+
+**Watch the Sandesh walkthrough by team MSB**
+
+<sub>Sign up and login, OTP and IVR, dashboard, AI drafting, spam detection, Sandesh Bot and more, in under 5 minutes.</sub>
+
+<br/><br/>
+
+<a href="(https://drive.google.com/file/d/1NbmP1FIwmeUtu3pNWc6dDmciqD6XKy2T/view?usp=sharing)">
+  <img src="https://img.shields.io/badge/Watch_on-Google_Drive-FF6B35?style=for-the-badge&logo=googledrive&logoColor=white" alt="Watch on Google Drive"/>
+</a>
+
+</div>
+
 ## What is Sandesh?
 
 **Sandesh** (संदेश, Hindi for "message") turns a phone number into a full email address. No traditional signup. `+919876543210` simply becomes `9876543210@sandesh.in`.
