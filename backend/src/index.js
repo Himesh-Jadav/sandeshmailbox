@@ -276,59 +276,34 @@ if (fs.existsSync(uriFile)) {
       connected = true;
     }
   } catch {
-    try { fs.unlinkSync(uriFile); } catch (_) {}
+    try { fs.unlinkSync(uriFile); } catch (_) { }
   }
 }
 
 // 2. If not already connected to local instance, try Atlas / external MONGODB_URI
 if (!connected && MONGODB_URI) {
   try {
-    logger.info('Connecting to MongoDB...');
+    logger.info('Connecting to MongoDB Atlas...');
     await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 2500 });
-    logger.info({ uri: MONGODB_URI.replace(/\/\/[^@]+@/, '//<credentials>@') }, 'MongoDB connected');
+    logger.info({ uri: MONGODB_URI.replace(/\/\/[^@]+@/, '//<credentials>@') }, 'MongoDB Atlas connected');
     connected = true;
   } catch (atlasErr) {
-    logger.warn({ err: atlasErr.message }, 'MongoDB connection timed out or unreachable. Starting local persistent MongoDB fallback...');
+    logger.warn({ err: atlasErr.message }, 'MongoDB Atlas connection failed. Falling back to local MongoDB service...');
   }
 }
 
-// 3. Fallback: Try Docker local mongo service or host MongoDB
+// 3. Fallback: Connect to local MongoDB service (from docker-compose)
 if (!connected) {
-  const fallbackUris = [
-    'mongodb://mongo:27017/phonemail',
-    'mongodb://127.0.0.1:27017/phonemail',
-  ];
-
-  for (const fallbackUri of fallbackUris) {
-    try {
-      logger.info({ uri: fallbackUri }, 'Attempting connection to local MongoDB fallback...');
-      await mongoose.connect(fallbackUri, { serverSelectionTimeoutMS: 2500 });
-      logger.info({ uri: fallbackUri }, 'Connected to local MongoDB service');
-      connected = true;
-      break;
-    } catch (_) {
-      // Continue to next fallback candidate
-    }
-  }
-}
-
-// 4. In local development mode only, attempt MongoMemoryServer if installed
-if (!connected && process.env.NODE_ENV !== 'production') {
   try {
-    const { MongoMemoryServer } = await import('mongodb-memory-server');
-    const mongod = await MongoMemoryServer.create();
-    const uri = mongod.getUri();
-    await mongoose.connect(uri);
-    logger.info({ uri }, 'Connected to in-memory MongoDB fallback');
+    logger.info('Connecting to local MongoDB service on docker network...');
+    const localUri = 'mongodb://mongo:27017/phonemail';
+    await mongoose.connect(localUri, { serverSelectionTimeoutMS: 5000 });
+    logger.info({ uri: localUri }, 'Local MongoDB service connected');
     connected = true;
-  } catch (memErr) {
-    logger.warn({ err: memErr.message }, 'MongoMemoryServer not available');
+  } catch (localErr) {
+    logger.error({ err: localErr.message }, 'Failed to connect to local MongoDB service');
+    process.exit(1);
   }
-}
-
-if (!connected) {
-  logger.fatal('Could not connect to any MongoDB instance. Backend cannot start.');
-  process.exit(1);
 }
 
 await seedDemoUsers();
@@ -363,7 +338,7 @@ async function gracefulShutdown(signal) {
     if (server) server.close();
     stopSmtpServer();
     await mongoose.disconnect();
-  } catch (_) {}
+  } catch (_) { }
   process.exit(0);
 }
 
