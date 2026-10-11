@@ -59,7 +59,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ initialMode }) => {
         <footer className="w-full max-w-[400px] mx-auto pt-2 pb-1 text-xs text-slate-400 dark:text-slate-500 flex flex-wrap items-center justify-center lg:justify-between gap-x-2 gap-y-1 px-1 flex-shrink-0">
           <span>&copy; 2026 Sandesh. All rights reserved.</span>
           <span className="flex items-center gap-1">
-            Made with <span className="text-rose-500" aria-label="love">❤️</span> by Himesh
+            Made with <span className="text-rose-500" aria-label="love">❤️</span> by Him
           </span>
         </footer>
       </div>
